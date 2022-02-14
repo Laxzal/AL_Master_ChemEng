@@ -60,3 +60,24 @@ def max_disagreement_sampling(committee: CommitteeClass, X_val, n_instances: int
         return multi_argmax(disagreement, n_instances=n_instances)
 
     return shuffled_argmax(disagreement, n_instances=n_instances)
+
+
+def consensus_entropy(committee: CommitteeClass, X_val, **predict_kwargs):
+    try:
+        proba = committee.predict_proba(X_val, **predict_kwargs)
+    except NotFittedError:
+        print('Issue with predict proba of the committees')
+
+    entr = np.transpose(entropy(np.transpose(proba)))
+
+    return entr
+
+
+def consensus_entropy_sampling(committee: CommitteeClass, X_val, n_instances: int = 1, random_tie_break=False,
+                               **disagreement_measure_kwargs):
+    disagreement = consensus_entropy(committee, X_val, **disagreement_measure_kwargs)
+
+    if not random_tie_break:
+        return multi_argmax(disagreement, n_instances=n_instances)
+
+    return shuffled_argmax(disagreement, n_instances=n_instances)

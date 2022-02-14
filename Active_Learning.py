@@ -16,7 +16,7 @@ from datetime import datetime
 from CommitteeClass import Committee
 from DataLoad import data_load
 from Models import SvmModel, RfModel
-from QueriesCommittee import KLMaxDisagreement, max_disagreement_sampling, vote_entropy
+from QueriesCommittee import KLMaxDisagreement, max_disagreement_sampling, vote_entropy, vote_entropy_sampling
 from SelectionFunctions import SelectionFunction
 from SplitData import split_data
 from Standardisation import MinMaxScaling
@@ -122,7 +122,7 @@ class Algorithm(object):
             self.committee_models.fit_data(X_train, y_train)
             probas_val = self.committee_models.vote_proba(X_val)
             self.committee_models.vote(X_val)
-            selection_probas_val = self.committee_models.query(self.committee_models, vote_entropy,
+            selection_probas_val = self.committee_models.query(self.committee_models, vote_entropy_sampling,
                                                                X_val, n_instances=instances)
             model_type = self.committee_models.printname()
         else:
