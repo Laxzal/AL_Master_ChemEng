@@ -1,11 +1,17 @@
 from collections import Counter
+from typing import Callable, Union
 
 import numpy as np
 from scipy.stats import entropy
 from sklearn.exceptions import NotFittedError
+from random import shuffle
+
+from sklearn.metrics import pairwise_distances
 
 import CommitteeClass
 from Arguments import multi_argmax, shuffled_argmax
+from pytorch_clysters import CosineClusters
+from scipy.spatial.distance import cosine, euclidean
 
 
 def vote_entropy(committee: CommitteeClass, X_val, **predict_proba_kwargs):
@@ -81,3 +87,44 @@ def consensus_entropy_sampling(committee: CommitteeClass, X_val, n_instances: in
         return multi_argmax(disagreement, n_instances=n_instances)
 
     return shuffled_argmax(disagreement, n_instances=n_instances)
+
+
+def get_cluster_samples(data, num_clusters: int = 5, max_epoch: int = 5, limit: int = 5000):
+    #if limit > 0:
+    #    shuffle(data)
+    #    data = data[:limit]
+
+    cosine_clusters = CosineClusters(num_clusters)
+
+    cosine_clusters.add_random_training_items(data)
+
+    for i in range(0, max_epoch):
+        print("Epoch " + str(i))
+        added = cosine_clusters.add_items_to_best_cluster(data)
+
+        if added == 0:
+            break
+
+        centroids = cosine_clusters.get_centroids()
+        outliers = cosine_clusters.get_outliers()
+        randoms = cosine_clusters.get_randoms(3, verbose=True)
+        return centroids + outliers + randoms
+
+
+
+def similarize_distance(distance_measure: Callable) -> Callable:
+
+
+    def sim(*args, **kwargs):
+        return 1/(1+distance_measure(*args, **kwargs))
+
+    return sim
+
+
+cosine_similarity = similarize_distance(cosine)
+euclidean_similarity = similarize_distance(euclidean)
+
+def information_density(X, metric: Union[str, Callable] = 'euclidean') -> np.ndarray:
+    similarity_mtx = 1/(1+pairwise_distances(X, X, metric = metric))
+
+    return similarity_mtx.mean(axis=1)
