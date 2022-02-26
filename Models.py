@@ -61,7 +61,7 @@ class SvmModel(BaseModel):
     def predict_labelled(self, X_train, X_test):
         print('Predicting labelled...')
         self.train_y_predicted = self.optimised_model.predict(X_train)
-        self.test_y_predicted = self.optimised_model(X_test)
+        self.test_y_predicted = self.optimised_model.predict(X_test)
 
         return self.train_y_predicted, self.test_y_predicted
 
@@ -124,7 +124,7 @@ class RfModel(BaseModel):
     def predict_labelled(self, X_train, X_test):
         print('Predicting labelled...')
         self.train_y_predicted = self.optimised_model.predict(X_train)
-        self.test_y_predicted = self.optimised_model(X_test)
+        self.test_y_predicted = self.optimised_model.predict(X_test)
 
         return self.train_y_predicted, self.test_y_predicted
 
@@ -185,7 +185,7 @@ class CBModel(BaseModel):
     def predict_labelled(self, X_train, X_test):
         print('Predicting labelled...')
         self.train_y_predicted = self.optimised_model.predict(X_train)
-        self.test_y_predicted = self.optimised_model(X_test)
+        self.test_y_predicted = self.optimised_model.predict(X_test)
 
         return self.train_y_predicted, self.test_y_predicted
 

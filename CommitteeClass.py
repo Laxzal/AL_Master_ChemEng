@@ -83,7 +83,7 @@ class Committee(ABC):
         prediction = np.zeros(shape=(len(X_val), len(self.learner_list)))
 
         for learner_idx, learner in enumerate(self.learner_list):
-            predict_val = learner.predict(X_val, **predict_kwargs)
+            predict_val = learner.predict
             prediction[:, learner_idx] = predict_val
 
         return prediction

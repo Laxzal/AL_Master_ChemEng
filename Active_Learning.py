@@ -17,11 +17,13 @@ from CommitteeClass import Committee
 from DataLoad import data_load
 from Models import SvmModel, RfModel
 from QueriesCommittee import KLMaxDisagreement, max_disagreement_sampling, vote_entropy, vote_entropy_sampling
+from QueryInstanceDensityWeighted import QueryInstanceDensityWeighted
 from SelectionFunctions import SelectionFunction
 from SplitData import split_data
 from Standardisation import MinMaxScaling
 from TrainModel import TrainModel
 import scipy.sparse as sp
+from DensityWeightedUncertaintySampling import DensityWeightedUncertaintySampling, DensityWeightedLogisticRegression
 
 """'
 
@@ -172,11 +174,17 @@ class Algorithm(object):
             str(model_type) + '_Ouput_Selection_' + str(select) + '_' + str(today_date) + '.csv',
             index=True)
 
+        # test = DensityWeightedUncertaintySampling(X_uld=X_val, X_lld=X_test, y_labelled=y_test)
+        # test.prob_x()
+        # ids = test.make_query()
+
+        test = QueryInstanceDensityWeighted(X_val, X_test, y_test, 'entropy', distance='euclidean', beta = 1.0)
+        test.select(batch_size=1, proba_prediction=probas_val)
 
 models = [SvmModel, RfModel]
 # , CBModel]
 # selection_functions = [selection_functions]
 
 selection = SelectionFunction()
-alg = Algorithm(models, selection)
+alg = Algorithm(models[0], selection)
 alg.run('Results_Complete.csv', 'uncertainty_sampling', 10, True)

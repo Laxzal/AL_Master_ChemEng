@@ -33,3 +33,18 @@ def shuffled_argmax(values, n_instances: int = 1):
     query_idx = shuffled_idx[sorted_query_idx]
 
     return query_idx
+
+
+def _is_arraylike(x):
+    return (hasattr(x, '__len__') or
+            hasattr(x, 'shape') or
+            hasattr(x, '__array__'))
+
+
+def nlargestarg(a, n):
+    assert (_is_arraylike(a))
+    assert (n > 0)
+
+    argret = np.argsort(a)
+
+    return argret[argret.size - n:]

@@ -48,7 +48,7 @@ class TrainModel:
 
     def predictions(self, X_train, X_val, X_test):
         self.val_y_predicted = self.model_object.predict(X_val)
-        self.train_y_predicted, self.test_y_predicted = self.model_object.predict_labelled(self, X_train, X_test)
+        self.train_y_predicted, self.test_y_predicted = self.model_object.predict_labelled(X_train, X_test)
         self.proba = self.model_object.predict_proba(X_val)
         return self.proba
 
