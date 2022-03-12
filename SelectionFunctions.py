@@ -31,8 +31,8 @@ class SelectionFunction:
         except NotFittedError:
             return np.ones(shape=(X.shape[0],))
 
-        uncertainy = self.proba_uncertainty(classwise_uncertainty)
-        return uncertainy
+        uncertainty = self.proba_uncertainty(classwise_uncertainty)
+        return uncertainty
 
     def classifier_margin(self, classifier, X, **predict_proba_kwargs):
         try:

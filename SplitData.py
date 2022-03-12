@@ -6,7 +6,7 @@ from sklearn.preprocessing import LabelEncoder
 import DataLoad
 
 
-class split_data(DataLoad.data_load):
+class split_data(DataLoad.Data_Load_Old):
     X = None
     y = None
 

@@ -18,6 +18,9 @@ class BaseModel(object):
     def predict_proba(self):
         pass
 
+    def transform_without_estimating(self):
+        pass
+
 
 class BaseSelectionFunction(object):
 

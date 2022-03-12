@@ -10,6 +10,7 @@ from sklearn.metrics import pairwise_distances
 
 import CommitteeClass
 from Arguments import multi_argmax, shuffled_argmax
+from CommitteeClass import CommitteeRegressor
 from pytorch_clysters import CosineClusters
 from scipy.spatial.distance import cosine, euclidean
 
@@ -18,7 +19,7 @@ def vote_entropy(committee: CommitteeClass, X_val, **predict_proba_kwargs):
     n_learners = len(committee)
 
     try:
-        votes = committee.vote(X_val)
+        votes = committee.vote()
     except NotFittedError:
         return print('There was an error in the vote function from CommitteeClass')
 
@@ -45,7 +46,7 @@ def vote_entropy_sampling(committee: CommitteeClass, X_val, n_instances: int = 1
 
 def KLMaxDisagreement(committee: CommitteeClass, X_val, **predict_proba_kwargs):
     try:
-        p_vote = committee.vote_proba(X_val)
+        p_vote = committee.vote_proba()
     except NotFittedError:
         return print('There was an error in the vote_proba function from CommitteeClass')
 
@@ -128,3 +129,23 @@ def information_density(X, metric: Union[str, Callable] = 'euclidean') -> np.nda
     similarity_mtx = 1/(1+pairwise_distances(X, X, metric = metric))
 
     return similarity_mtx.mean(axis=1)
+
+
+def max_std_sampling(regressor: CommitteeRegressor, X_unlabeled: np.ndarray, n_instances: int = 1,
+                     random_tie_break = False, **predict_kwargs):
+    '''
+    Regressor standard deviation sampling strategy
+    :param regressor:
+    :param X_unlabeled:
+    :param n_instances:
+    :param random_tie_break:
+    :param predict_kwargs:
+    :return:
+    '''
+
+    _, std = regressor.predict(X_unlabeled, return_std=True, **predict_kwargs)
+    std = std.reshape(X_unlabeled.shape[0], )
+
+    if not random_tie_break:
+        return multi_argmax(std, n_instances=n_instances)
+    return shuffled_argmax(std, n_instances=n_instances)
