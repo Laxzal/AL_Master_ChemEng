@@ -11,7 +11,7 @@ from sklearn.metrics import pairwise_distances
 import CommitteeClass
 from Arguments import multi_argmax, shuffled_argmax
 from CommitteeClass import CommitteeRegressor
-from pytorch_clysters import CosineClusters
+from TO_BE_DELETED import CosineClusters
 from scipy.spatial.distance import cosine, euclidean
 
 

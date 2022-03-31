@@ -1,8 +1,8 @@
 import abc
 import sys
 from typing import List, Iterator, Callable
-
-
+import pickle
+from datetime import datetime
 from ToolsActiveLearning import retrieverows
 import numpy as np
 from sklearn.base import BaseEstimator
@@ -93,7 +93,7 @@ class CommitteeClassification(ABC):
 
     def gridsearch_committee(self):
         for learner in self.learner_list:
-            learner.gridsearch(X_train=self.X_training, y_train=self.y_training, c_weight=self.c_weight,catboost_weight= np.unique(self.y_training), splits=self.splits,
+            learner.gridsearch(X_train=self.X_training, y_train=self.y_training, c_weight=self.c_weight, catboost_weight= np.unique(self.y_training), splits=self.splits,
                                scoring_type = self.scoring_type, kfold_shuffle = self.kfold_shuffle)
 
     def fit_data(self, **fit_kwargs):
@@ -134,6 +134,22 @@ class CommitteeClassification(ABC):
         query_result = tuple((query_result, retrieverows(self.X_unlabeled, query_result)))
         return query_result
 
+
+    def save_model(self):
+
+        #TODO Set save location
+        #TODO Add score and other details [maybe a dataframe]
+        today_date = datetime.today().strftime('%Y%m%d')
+        for learner_idx, learner in enumerate(self.learner_list):
+            filename = str(learner.model_type) + '_committee_' + str(today_date) + '.sav'
+            pickle.dump(learner, open(filename, 'wb'))
+
+    def load_model(self, list_files: List):
+        list_files = list_files
+        #TODO Need to see if it works, may need to code in prediction functions
+        for learner_idx, learner in enumerate(self.learner_list):
+            loaded_model = pickle.load(open(list_files[learner_idx],'rb'))
+            learner[learner_idx] = loaded_model
 
 class CommitteeRegressor(ABC):
 
