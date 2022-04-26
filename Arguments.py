@@ -10,7 +10,19 @@ def multi_argmax(values, n_instances: int = 1):
     """
     assert n_instances <= values.shape[0], 'n_instances must be less or equal than the size'
 
-    max_idx = np.argpartition(-values, n_instances - 1, axis=0)[:n_instances]
+    ###Making Changes - Need to speak to Jeremie ###TODO Speak to Jeremie\
+    """
+    import pandas as pd
+    test_max_1 =  np.argpartition(-values, n_instances - 1, axis=0)[:n_instances]
+    test_df_1 = pd.DataFrame(test_max_1)
+    test_max = np.argsort(values, kind='mergesort')[len(values) - n_instances:]
+    test_df = pd.DataFrame(test_max)
+    
+    """
+    if values.shape[0] == n_instances:
+        max_idx = np.argsort(values, kind='mergesort')[len(values) - n_instances:]
+    else:
+        max_idx = np.argpartition(-values, n_instances - 1, axis=0)[:n_instances]
     return max_idx
 
 

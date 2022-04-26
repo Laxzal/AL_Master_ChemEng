@@ -3,6 +3,9 @@ import sys
 from typing import List, Iterator, Callable
 import pickle
 from datetime import datetime
+
+from matplotlib import pyplot as plt
+
 from ToolsActiveLearning import retrieverows
 import numpy as np
 from sklearn.base import BaseEstimator
@@ -15,15 +18,18 @@ if sys.version_info >= (3, 4):
 else:
     ABC = abc.ABCMeta('ABC', (), {})
 
+plt.rcParams.update({'figure.figsize': (7, 5), 'figure.dpi': 100})
+
 
 class CommitteeClassification(ABC):
 
     def __init__(self, learner_list: List[BaseModel], X_training, X_testing, y_training, y_testing, X_unlabeled,
-                 query_strategy: Callable, c_weight = None, splits: int=5,
-                scoring_type: str='precision', kfold_shuffle: bool=True):
-        assert scoring_type in ['accuracy','balanced_accuracy','top_k_accuracy','average_precision','neg_brier_score',
-                                'f1','f1_micro', 'f1_macro', 'f1_weighted', 'f1_samples', 'neg_los_loss','precision',
-                                'recall','jaccard','roc_auc','roc_auc_ovr','roc_auc_ovo','roc_auc_ovr_weighted',
+                 query_strategy: Callable, c_weight=None, splits: int = 5,
+                 scoring_type: str = 'precision', kfold_shuffle: bool = True):
+        assert scoring_type in ['accuracy', 'balanced_accuracy', 'top_k_accuracy', 'average_precision',
+                                'neg_brier_score',
+                                'f1', 'f1_micro', 'f1_macro', 'f1_weighted', 'f1_samples', 'neg_los_loss', 'precision',
+                                'recall', 'jaccard', 'roc_auc', 'roc_auc_ovr', 'roc_auc_ovo', 'roc_auc_ovr_weighted',
                                 'roc_auc_ovo_weighted']
 
         self.classes_ = None
@@ -39,11 +45,6 @@ class CommitteeClassification(ABC):
         self.query_strategy = query_strategy
         self.scoring_type = scoring_type
         self.kfold_shuffle = kfold_shuffle
-
-
-
-
-
 
     def __len__(self) -> int:
         return len(self.learner_list)
@@ -92,9 +93,18 @@ class CommitteeClassification(ABC):
             raise NotFittedError('Not all estimators are fitted. Fit all estimators before using this method')
 
     def gridsearch_committee(self):
-        for learner in self.learner_list:
-            learner.gridsearch(X_train=self.X_training, y_train=self.y_training, c_weight=self.c_weight, catboost_weight= np.unique(self.y_training), splits=self.splits,
-                               scoring_type = self.scoring_type, kfold_shuffle = self.kfold_shuffle)
+        # score_values = np.zeros(shape=[len(self.learner_list), len(self.learner_list), len(self.learner_list)])
+
+        score_values = {}
+        for learner_idx, learner in enumerate(self.learner_list):
+            # score_values[:, :, learner_idx] \
+            score_values[learner.model_type] = learner.gridsearch(X_train=self.X_training, y_train=self.y_training,
+                                                                  c_weight=self.c_weight,
+                                                                  catboost_weight=np.unique(self.y_training),
+                                                                  splits=self.splits,
+                                                                  scoring_type=self.scoring_type,
+                                                                  kfold_shuffle=self.kfold_shuffle)
+        return score_values
 
     def fit_data(self, **fit_kwargs):
 
@@ -134,11 +144,10 @@ class CommitteeClassification(ABC):
         query_result = tuple((query_result, retrieverows(self.X_unlabeled, query_result)))
         return query_result
 
-
     def save_model(self):
 
-        #TODO Set save location
-        #TODO Add score and other details [maybe a dataframe]
+        # TODO Set save location
+        # TODO Add score and other details [maybe a dataframe]
         today_date = datetime.today().strftime('%Y%m%d')
         for learner_idx, learner in enumerate(self.learner_list):
             filename = str(learner.model_type) + '_committee_' + str(today_date) + '.sav'
@@ -146,11 +155,32 @@ class CommitteeClassification(ABC):
 
     def load_model(self, list_files: List):
         list_files = list_files
-        #TODO Need to see if it works, may need to code in prediction functions
+        # TODO Need to see if it works, may need to code in prediction functions
         for learner_idx, learner in enumerate(self.learner_list):
-            loaded_model = pickle.load(open(list_files[learner_idx],'rb'))
+            loaded_model = pickle.load(open(list_files[learner_idx], 'rb'))
             learner[learner_idx] = loaded_model
 
+    def confusion_matrix(self):
+        # fig, axes = plt.subplots(1,len(self.learner_list))
+        conf_dict = {}
+        for learner_idx, learner in enumerate(self.learner_list):
+            learner.predict_labelled(self.X_training, self.X_testing)
+            cm_test, cm_train = learner.confusion_matrix(y_test=self.y_testing, y_train=self.y_training,
+                                                         class_estim=self.classes_)
+            conf_dict[str(learner.model_type) + '_train'] = cm_train
+            conf_dict[str(learner.model_type) + '_test'] = cm_test
+        return conf_dict
+
+    def precision_scoring(self):
+        scoring = {}
+        for learner_idx, learner in enumerate(self.learner_list):
+            if learner.train_y_predicted is None:
+                learner.predict_labelled(self.X_training, self.X_testing)
+            score_train, score_test = learner.precision_score_model(y_train = self.y_training, y_test = self.y_testing)
+            scoring[str(learner.model_type) + '_train'] = score_train
+            scoring[str(learner.model_type) + '_test'] = score_test
+
+        return scoring
 class CommitteeRegressor(ABC):
 
     def __init__(self, learner_list: List[BaseModel], X_training, X_testing, y_training, y_testing, X_unlabeled,
@@ -232,9 +262,12 @@ class CommitteeRegressor(ABC):
             raise NotFittedError('Not all estimators are fitted. Fit all estimators before using this method')
 
     def gridsearch_committee(self):
-        for learner in self.learner_list:
-            learner.gridsearch(X_train = self.X_training, y_train = self.y_training, splits = self.splits,
-                               kfold_shuffle = self.kfold_shuffle,scoring_type =  self.scoring_type)
+        score_values = {}
+        for learner_idx,  learner in enumerate(self.learner_list):
+            score_values[learner.model_type] = learner.gridsearch(X_train=self.X_training, y_train=self.y_training, splits=self.splits,
+                               kfold_shuffle=self.kfold_shuffle, scoring_type=self.scoring_type)
+
+        return score_values
 
     def fit_data(self, **fit_kwargs):
 

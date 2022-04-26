@@ -158,7 +158,7 @@ class Cluster():
                 self.feature_idx[word] = len(self.feature_vector)
                 self.feature_vector.append(1)
 
-    def remove_from_cluster(self, item):
+    def emove_from_cluster(self, item):
         """ Removes if exists in the cluster
 
         """

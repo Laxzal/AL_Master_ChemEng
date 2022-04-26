@@ -4,14 +4,14 @@ Standardisation
 
 '''
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import StandardScaler
+from sklearn import preprocessing
+
 from sklearn.decomposition import PCA
 
 class MinMaxScaling(object):
 
     def __init__(self):
-        self.scaler = MinMaxScaler()
+        self.scaler = preprocessing.MinMaxScaler()
 
     def minmaxscale_fit(self, X_train, X_test, X_val):
         temp_stack = np.vstack((X_train, X_test, X_val))
@@ -36,7 +36,7 @@ class MinMaxScaling(object):
 class Standardisation(object):
 
     def __init__(self, X_train: np.ndarray = None, X_test: np.ndarray = None, X_unlabeled: np.ndarray = None):
-        self.scaler = StandardScaler()
+        self.scaler = preprocessing.StandardScaler()
         self.X_train = X_train
         self.X_test = X_test
         self.X_unlabeled = X_unlabeled

@@ -21,6 +21,12 @@ class BaseModel(object):
     def transform_without_estimating(self):
         pass
 
+    def confusion_matrix(self):
+        pass
+
+    def precision_score_model(self):
+        pass
+
 
 class BaseSelectionFunction(object):
 
