@@ -319,3 +319,5 @@ class CommitteeRegressor(ABC):
             print("Scoring Strategy: ", str(self.scoring_type))
             print("Score: ", test_strat)
             scores[str(learner.model_type) + '_test'] = np.array([str(self.scoring_type), test_strat])
+
+        return scores
