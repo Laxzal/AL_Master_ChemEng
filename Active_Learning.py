@@ -11,6 +11,7 @@
 '"""
 import math
 import os
+import platform
 from random import shuffle
 from typing import Callable, Union, Optional
 
@@ -45,8 +46,12 @@ from confusion_matrix_custom import make_confusion_matrix
 GATHER DATA
 
 '"""
-wrk_path_3 = r"/Users/calvin/Documents/OneDrive/Documents/2020/Liposomes Vitamins/LiposomeFormulation"
-os.chdir(wrk_path_3)
+
+if platform.system() =='Windows':
+    os.chdir()
+elif platform.system() == 'Darwin':
+    wrk_path_3 = r"/Users/calvin/Documents/OneDrive/Documents/2020/Liposomes Vitamins/LiposomeFormulation"
+    os.chdir(wrk_path_3)
 
 '''
 Pull in Unlabelled data
