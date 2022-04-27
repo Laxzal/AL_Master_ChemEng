@@ -289,12 +289,12 @@ class SVR_Model(BaseModel):
         self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
         # TODO Better define params
         self.paramgrid = {'C': [0.01, 0.1],  # np.logspace(-5, 2, 8),
-                          #'gamma': np.logspace(-3, 1, 5),
+                          'gamma': np.logspace(-3, 1, 5),
                           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
                           'kernel': ['rbf', 'poly', 'sigmoid', 'linear'],
                           'coef0': [0, 0.001, 0.1, 1],
                           'degree': [1, 3, 4],
-                          #'epsilon': [0.1, 0.2, 0.3, 0.5]
+                          'epsilon': [0.1, 0.2, 0.3, 0.5]
                           }
         # TODO Create kFold&Scoring PARAM choose
         self.svm_grid = GridSearchCV(self.deopt_classifier, self.paramgrid, cv=self.kfold, refit=True,
@@ -364,8 +364,8 @@ class RandomForestEnsemble(BaseModel):
                           'criterion': ['squared_error', 'absolute_error', 'poisson'],
                           'max_features': ['auto', 'sqrt', 'log2'],
                           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-                          # 'max_depth': [int(x) for x in np.linspace(1, 110,
-                          # num=12)],
+                          'max_depth': [int(x) for x in np.linspace(1, 110,
+                          num=12)],
                           'bootstrap': [False, True],
                           #'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)]
                           }
@@ -442,8 +442,8 @@ class CatBoostReg(BaseModel):
         self.deopt_classifier = cb.CatBoostRegressor(loss_function='RMSE', random_seed=42, eval_metric=scoring)
 
         self.paramgrid = {'learning_rate': [0.03, 0.1],
-                          #'depth': [4, 6, 10],
-                          #'l2_leaf_reg': [1, 3, 5, 7, 9]
+                          'depth': [4, 6, 10],
+                          'l2_leaf_reg': [1, 3, 5, 7, 9]
                           }
 
         self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)

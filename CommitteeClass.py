@@ -303,6 +303,7 @@ class CommitteeRegressor(ABC):
 
         train_vote = self.vote(self.X_training, **predict_kwargs)
         test_vote = self.vote(self.X_testing, **predict_kwargs)
+        scores = {}
 
         for learner_idx, learner in enumerate(self.learner_list):
             train_strat = self.score_query(self.y_training, train_vote[:, learner_idx])
@@ -310,10 +311,11 @@ class CommitteeRegressor(ABC):
             print("Model: ", learner.model_type)
             print("Scoring Strategy: ", str(self.scoring_type))
             print("Score: ", train_strat)
-
+            scores[str(learner.model_type) + '_train'] = np.array([str(self.scoring_type), train_strat])
         for learner_idx, learner in enumerate(self.learner_list):
             test_strat = self.score_query(self.y_testing, test_vote[:, learner_idx])
             print("X testing data scoring")
             print("Model: ", learner.model_type)
             print("Scoring Strategy: ", str(self.scoring_type))
             print("Score: ", test_strat)
+            scores[str(learner.model_type) + '_test'] = np.array([str(self.scoring_type), test_strat])

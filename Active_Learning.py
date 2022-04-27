@@ -12,7 +12,7 @@
 import math
 import os
 from random import shuffle
-from typing import Callable, Union
+from typing import Callable, Union, Optional
 
 import pandas as pd
 import numpy as np
@@ -93,6 +93,8 @@ class Algorithm(object):
                  file: str = 'unlabelled_data_full.csv',
                  limit: int = -1, perc_uncertain: float = 0.1, n_instances: Union[int, str] = 'Full',
                  split_ratio: float = 0.2):
+        self.regression = None
+        self.similarity_score = None
         self.selection_probas_val = None
         assert perc_uncertain <= 1
         assert model_type in ['Classification', 'Regression']
@@ -175,6 +177,7 @@ class Algorithm(object):
     def run_algorithm(self):
         if self.model_type == 'Regression':
             self.regression_model()
+            self.regression = 1
         elif self.model_type == 'Classification':
             self.classification_model()
             self.classification = 1
@@ -190,9 +193,10 @@ class Algorithm(object):
                                                        query_strategy=max_std_sampling)
             self.scores = self.committee_models.gridsearch_committee()
             self.committee_models.fit_data()
-            self.committee_models.score()
+            self.score_data = self.committee_models.score()
             self.selection_probas_val = self.committee_models.query(self.committee_models, n_instances=self.n_instances)
-
+            self.models_algorithms = self.committee_models.printname()
+            
     def classification_model(self):
         if type(self.model_object) is list:
             self.committee_models = CommitteeClassification(learner_list=self.model_object, X_training=self.X_train,
@@ -220,35 +224,43 @@ class Algorithm(object):
         unlabelled_df_temp = pd.DataFrame(self.X_val.copy()).reset_index(drop=True)
         print(selection_df.equals(unlabelled_df_temp))
 
-    def similairty_scoring(self):
+    def similairty_scoring(self, method: str = 'gower', threshold: float = 0.5,n_instances: int = 100, k_range: Optional[int] = 10,
+                           alpha: Optional[float] = 0.01):
+        self.density_method = method
+        self.method_threshold = threshold
         sim_init = Similarity_Measure.Similarity(self.selection_probas_val[1], self.selection_probas_val[0])
-        self.samples, self.samples_index = sim_init.similarity(0.5, 'cosine')
 
-        return self.samples, self.samples_index
+        if method == 'cosine':
+            assert threshold <= 1.0
+            self.samples, self.samples_index, self.sample_score = sim_init.similarity_cosine(threshold, 'cosine')
+        elif method == 'gower':
+            assert threshold <= 1.0
+            self.samples, self.samples_index, self.sample_score = sim_init.similarity_gower(threshold, n_instances=n_instances)
+        elif method == 'kmeans':
+            self.kmeans_cluster_deopt = KMeans_Cluster(unlabeled_data=self.selection_probas_val)
+            # self.kmeans_cluster.elbow_method(clusters=20)
 
-    def clustering_optimising(self, k_range: int = 10, alpha: float = 0.01):
-        self.kmeans_cluster_deopt = KMeans_Cluster(unlabeled_data=self.selection_probas_val)
-        # self.kmeans_cluster.elbow_method(clusters=20)
+            self.best_k, self.results = self.kmeans_cluster_deopt.chooseBestKforKmeansParallel(k_range=k_range,
+                                                                                               alpha=alpha)
 
-        self.best_k, self.results = self.kmeans_cluster_deopt.chooseBestKforKmeansParallel(k_range=k_range, alpha=alpha)
-        #self.kmeans_cluster_deopt.silhouette(X=self.X_val)
-
-        return self.best_k, self.results
-
-    def cluster_sort(self, method: str = 'KMeans', threshold: float = 1.0, n_instances: int = 100):
-        if method == 'KMeans':
             self.kmeans_cluster_opt = KMeans_Cluster(unlabeled_data=self.selection_probas_val, n_clusters=self.best_k)
             self.kmeans_cluster_opt.kmeans_fit()
-            self.samples, self.samples_index = self.kmeans_cluster_opt.create_array(threshold=threshold,
+            self.samples, self.samples_index, self.sample_score = self.kmeans_cluster_opt.create_array(threshold=threshold,
                                                                                     n_instances=n_instances)
+            # self.kmeans_cluster_deopt.silhouette(X=self.X_val)
 
-        elif method == 'HDBScan':
+            return self.best_k, self.results
+        elif method == 'hdbscan':
             self.hdbscan_opt = HDBScan(unlabeled_data=self.selection_probas_val)
             self.hdbscan_opt.hdbscan_fit()
 
-            self.samples, self.samples_index = self.hdbscan_opt.distance_sort()
+            self.samples, self.samples_index, self.sample_score = self.hdbscan_opt.distance_sort()
 
-        return self.samples, self.samples_index
+
+
+        return self.samples, self.samples_index, self.sample_score
+
+
 
     def single_model(self):
 
@@ -307,7 +319,8 @@ class Algorithm(object):
         _, reversed_x_val, _ = self.normaliser.inverse_minmaxscale(self.X_train, self.samples, self.X_test)
         today_date = datetime.today().strftime('%Y%m%d')
         df = pd.DataFrame(reversed_x_val, columns=self.columns_x_val, index=self.samples_index)
-
+        #add similarty scores:
+        df['sample_scoring'] = self.sample_score
         data = {'date': today_date,
                 'model_type': self.model_type}
         if type(self.model_object) is list:
@@ -319,28 +332,25 @@ class Algorithm(object):
                 data['algorithm_2'] = str(self.model_object[1].model_type)
                 data['algorithm_3'] = str(self.model_object[2].model_type)
 
+        data['density_method'] = self.density_method
+        data['method_threshold'] = self.method_threshold
+
         df_info = pd.DataFrame.from_dict(data, orient='index').T
         col_move = len(df_info.columns)
         df_scores = pd.DataFrame.from_dict(self.scores, orient='index').T
         df_scores['average_score'] = df_scores[1:].sum(axis=1) / len(self.model_object)
-
-
-
-
 
         df_classification = pd.DataFrame()
         # temp = list(df.select_dtypes('float').columns.values)
         # df.apply(lambda x: round(x, 2))
 
         writer = pd.ExcelWriter(
-            str(self.models_algorithms) + '_Ouput_Selection_' + str(self.select) + '_' + str(today_date) + '.xlsx',
+            str(self.models_algorithms) + '_Ouput_Selection_' + str(self.select.__name__) + '_' + str(today_date) + '.xlsx',
             engine='xlsxwriter')
         df_info.to_excel(writer,
                          index=False, startrow=1)
         df_scores.to_excel(writer,
                            index=False, startcol=col_move)
-
-
 
         if self.classification == 1:
             labels = ["True Neg", "False Pos", "False Neg", "True Pos"]
@@ -366,7 +376,9 @@ class Algorithm(object):
                 temp_df.to_excel(writer, sheet_name=str(k))
                 worksheet = writer.sheets[str(k)]
                 worksheet.insert_image('C2', str(k) + ".png")
-
+        elif self.regression == 1:
+            df_scores_data = pd.DataFrame.from_dict(self.score_data, orient='index').T
+            df_scores_data.to_excel(writer, sheet_name='Regression_Score_Data')
         writer.save()
 
         # selection_probas_val = pd.DataFrame(self.selection_probas_val)
@@ -375,7 +387,7 @@ class Algorithm(object):
 
 # models = [SvmModel, RfModel, CBModel]
 models = [SVR_Model, RandomForestEnsemble
-, CatBoostReg
+    , CatBoostReg
           ]
 # selection_functions = [selection_functions]
 
@@ -383,9 +395,7 @@ selection = SelectionFunction()
 alg = Algorithm(models, selection, select=max_std_sampling, model_type='Regression')
 alg.run_algorithm()
 alg.compare_query_changes()
-alg.similairty_scoring()
-alg.clustering_optimising()
-alg.cluster_sort(method='KMeans')
+alg.similairty_scoring(method='gower', threshold=0.25, n_instances=100)
 alg.output_data()
 
 # alg.run('Results_Complete.csv', 'uncertainty_sampling', 1889244, True, model_type='Classification',

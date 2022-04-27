@@ -315,9 +315,10 @@ class KMeans_Cluster():
         distances_df = distances_df.rename(columns={0: 'distances_local'})
         result = pd.merge(x_val, distances_df, left_on='original_index', right_index=True)
         results_index = result['original_index']
+        distance_score = result['distances_local']
         result.drop(columns=['distances', 'original_index', 'label_cluster', 'distances_local'], inplace=True)
 
-        return result, results_index
+        return result, results_index, distance_score
 
     def silhouette(self, X: np.ndarray, range_clusters: List[int] = [2, 3, 4, 5, 6, 7, 8, 9]):
         silhouette_avg_n_clusters = []
@@ -476,6 +477,7 @@ class HDBScan():
         distances_df = distances_df.rename(columns={0: 'distances_local'})
         result = pd.merge(x_val, distances_df, left_on='original_index', right_index=True)
         results_index = result['original_index']
+        distance_score = result['distances_local']
         result.drop(columns=['distances', 'original_index', 'label_cluster', 'distances_local'], inplace=True)
 
-        return result, results_index
+        return result, results_index, distance_score
