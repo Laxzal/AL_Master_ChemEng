@@ -71,6 +71,13 @@ class Data_Load_Split(object):
                                           'Z-Average (d.nm)',
                                           'Duplicate_Check']
 
+        self.drop_columns_useless = ['Req_Weight_1', 'Ethanol_1',
+                                     'Req_Weight_2', 'Ethanol_2',
+                                     'Req_Weight_3',
+                                     'Req_Weight_4', 'Ethanol_4',
+                                     'ethanol_dil',
+                                     ]
+
         self.datafile = None
         self.train_table = None
         self.dum = None
