@@ -71,7 +71,7 @@ class Similarity():
                     similarity = 1 - gower.gower_matrix(points[[-2, -1]])[1][0]
 
                     if similarity <= threshold:
-                        print(str(index) + "/" + str(unlabeled_data.shape[0]))
+                        print(str(index) + "/" + str(unlabeled_data.shape[0]) + " - Formulation ID: " + str(formulation_id))
                         similarity_points[formulation_id] = similarity
                     else:
                         points = np.delete(points, -1, 0)

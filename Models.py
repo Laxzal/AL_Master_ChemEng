@@ -289,12 +289,12 @@ class SVR_Model(BaseModel):
         self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
         # TODO Better define params
         self.paramgrid = {'C': [0.01, 0.1],  # np.logspace(-5, 2, 8),
-                          'gamma': np.logspace(-3, 1, 5),
+                         # 'gamma': np.logspace(-3, 1, 5),
                           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-                          'kernel': ['rbf', 'poly', 'sigmoid', 'linear'],
-                          'coef0': [0, 0.001, 0.1, 1],
-                          'degree': [1, 3, 4],
-                          'epsilon': [0.1, 0.2, 0.3, 0.5]
+                          #'kernel': ['rbf', 'poly', 'sigmoid', 'linear'],
+                          #'coef0': [0, 0.001, 0.1, 1],
+                          #'degree': [1, 3, 4],
+                          #'epsilon': [0.1, 0.2, 0.3, 0.5]
                           }
         # TODO Create kFold&Scoring PARAM choose
         self.svm_grid = GridSearchCV(self.deopt_classifier, self.paramgrid, cv=self.kfold, refit=True,
@@ -361,12 +361,11 @@ class RandomForestEnsemble(BaseModel):
         self.paramgrid = {'n_estimators': [int(x) for x in np.linspace(start=200,
                                                                        stop=1000,
                                                                        num=9)],
-                          'criterion': ['squared_error', 'absolute_error', 'poisson'],
-                          'max_features': ['auto', 'sqrt', 'log2'],
+                          #'criterion': ['squared_error', 'absolute_error', 'poisson'],
+                          #'max_features': ['auto', 'sqrt', 'log2'],
                           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-                          'max_depth': [int(x) for x in np.linspace(1, 110,
-                          num=12)],
-                          'bootstrap': [False, True],
+                         # 'max_depth': [int(x) for x in np.linspace(1, 110,num=12)],
+                          #'bootstrap': [False, True],
                           #'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)]
                           }
         # The minimum number of samples required to split an internal node:
@@ -439,11 +438,12 @@ class CatBoostReg(BaseModel):
             print('Scoring method for CatBoost not found in mapping. Defaulting to "Poisson"')
             scoring = 'Poisson'
 
-        self.deopt_classifier = cb.CatBoostRegressor(loss_function='RMSE', random_seed=42, eval_metric=scoring)
-
+        self.deopt_classifier = cb.CatBoostRegressor(loss_function='RMSE', random_seed=42, eval_metric=scoring,
+                                                     early_stopping_rounds=42)
+        #https://towardsdatascience.com/5-cute-features-of-catboost-61532c260f69
         self.paramgrid = {'learning_rate': [0.03, 0.1],
-                          'depth': [4, 6, 10],
-                          'l2_leaf_reg': [1, 3, 5, 7, 9]
+                          'depth': [2,3,4, 6, 8] #DEFAULT is 6. Decrease value to prevent overfitting
+                          ,'l2_leaf_reg': [3, 5, 7, 9, 12, 13] #Increase the value to prevent overfitting DEFAULT is 3
                           }
 
         self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)

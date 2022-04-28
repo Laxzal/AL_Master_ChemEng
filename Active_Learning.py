@@ -254,7 +254,6 @@ class Algorithm(object):
                                                                                     n_instances=n_instances)
             # self.kmeans_cluster_deopt.silhouette(X=self.X_val)
 
-            return self.best_k, self.results
         elif method == 'hdbscan':
             self.hdbscan_opt = HDBScan(unlabeled_data=self.selection_probas_val)
             self.hdbscan_opt.hdbscan_fit()
@@ -325,6 +324,7 @@ class Algorithm(object):
         today_date = datetime.today().strftime('%Y%m%d')
         df = pd.DataFrame(reversed_x_val, columns=self.columns_x_val, index=self.samples_index)
         #add similarty scores:
+        self.sample_score.index = df.index
         df['sample_scoring'] = self.sample_score
         data = {'date': today_date,
                 'model_type': self.model_type}
