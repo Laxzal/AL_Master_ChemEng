@@ -51,7 +51,7 @@ class Data_Load_Old(object):
 class Data_Load_Split(object):
 
     def __init__(self, file, hide_component: str = None, alg_categ: str = None, split_ratio: float = 0.2,
-                 shuffle_data: bool = True):
+                 shuffle_data: bool = True, drop_useless_columns: bool = True):
 
         assert alg_categ in ['Regression', 'Classification', 'Regression and Classification', 'Reg&Class']
 
@@ -60,7 +60,7 @@ class Data_Load_Split(object):
         self.alg_categ = alg_categ
         self.split_ratio = split_ratio
         self.shuffle_data = shuffle_data
-
+        self.drop_useless_columns = drop_useless_columns
         self.regression_table_drop = ['ES_Aggregation',
                                       'PdI Width (d.nm)',
                                       'PdI',
@@ -76,6 +76,9 @@ class Data_Load_Split(object):
                                      'Req_Weight_3',
                                      'Req_Weight_4', 'Ethanol_4',
                                      'ethanol_dil',
+                                     'component_1_vol_stock',
+                                     'component_2_vol_stock',
+                                     'component_3_vol_stock'
                                      ]
 
         self.datafile = None
@@ -92,6 +95,8 @@ class Data_Load_Split(object):
         self.alg_category()
         self.initial_x_array()
         self.inital_y_array()
+        self.class_names_str = None
+
 
     def initial_read_file(self):
         try:
@@ -100,8 +105,19 @@ class Data_Load_Split(object):
             datafile = pd.read_excel(str(self.file))
 
         print(datafile.head())
+
+        if self.drop_useless_columns == True:
+            datafile = self._useless_column_drop(datafile)
+
         self.datafile = datafile
+
+
         return self.datafile
+
+    def _useless_column_drop(self, dataframe: pd.DataFrame):
+        datafile = dataframe.drop(columns=self.drop_columns_useless)
+
+        return datafile
 
     def label_encode(self):
         if self.alg_categ in {'Classification'}:
@@ -109,6 +125,7 @@ class Data_Load_Split(object):
             self.datafile = self.datafile[self.datafile['ES_Aggregation'].notna()].reset_index(drop=True)
             self.datafile['ES_Aggregation_encoded'] = lb.fit_transform((self.datafile['ES_Aggregation']))
             print(self.datafile['ES_Aggregation_encoded'].value_counts())
+            self.class_names_str = lb.classes_
         elif self.alg_categ in {'Regression'}:
             self.datafile = self.datafile[self.datafile['Z-Average (d.nm)'].notna()].reset_index(drop=True)
 

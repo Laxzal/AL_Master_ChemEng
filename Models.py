@@ -28,19 +28,15 @@ class SvmModel(BaseModel):
 
     def gridsearch(self, X_train, y_train, c_weight, catboost_weight: Optional[None], splits: int = 5,
                    scoring_type: str = 'precision',
-                   kfold_shuffle: bool = True):
+                   kfold_shuffle: bool = True,
+                   parameters = None):
         print("GridSearching SVM...")
         self.deopt_classifier = SVC(class_weight=c_weight, random_state=42, probability=True)
         self.stratifiedkfold = StratifiedKFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
         # TODO Better define params
-        self.paramgrid = {'C': [0.01, 0.1],  # np.logspace(-5, 2, 8),
-                          'gamma': np.logspace(-5, 3, 9),
-                          # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-                          'kernel': ['rbf', 'poly', 'sigmoid', 'linear'],
-                          'coef0': [0, 0.001, 0.1, 1],
-                          'degree': [1, 2, 3, 4]}
+
         # TODO Create kFold&Scoring PARAM choose
-        self.svm_grid = GridSearchCV(self.deopt_classifier, self.paramgrid, cv=self.stratifiedkfold, refit=True,
+        self.svm_grid = GridSearchCV(self.deopt_classifier, param_grid=parameters, cv=self.stratifiedkfold, refit=True,
                                      n_jobs=-1,
                                      verbose=10,
                                      scoring=scoring_type)
@@ -84,13 +80,14 @@ class SvmModel(BaseModel):
 
     def confusion_matrix(self, y_test, y_train, class_estim):
         results_test = confusion_matrix(y_test, self.test_y_predicted, labels=class_estim)
-        results_train = confusion_matrix(y_train, self.train_y_predicted, labels= class_estim)
+        results_train = confusion_matrix(y_train, self.train_y_predicted, labels=class_estim)
         return results_test, results_train
 
     def precision_score_model(self, y_train, y_test):
         score_train = precision_score(y_true=y_train, y_pred=self.train_y_predicted)
         score_test = precision_score(y_true=y_test, y_pred=self.test_y_predicted)
         return score_train, score_test
+
 
 class RfModel(BaseModel):
     model_type = 'Random_Forest'
@@ -109,18 +106,14 @@ class RfModel(BaseModel):
 
     def gridsearch(self, X_train, y_train, c_weight, catboost_weight: Optional[None], splits: int = 5,
                    scoring_type: str = 'precision',
-                   kfold_shuffle: bool = True):
+                   kfold_shuffle: bool = True,
+                   parameters=None):
         print('Gridsearching RFModel...')
         self.deopt_classifier = RandomForestClassifier(class_weight=c_weight)
         self.stratifiedkfold = StratifiedKFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
-        self.paramgrid = {'n_estimators': [int(x) for x in np.linspace(start=200, stop=2000, num=10)],
-                          'max_features': ['auto', 'sqrt'],
-                           'max_depth': [int(x) for x in np.linspace(10, 110, num=11)],
-                          'min_samples_split': [2, 5, 10],
-                          'min_samples_leaf': [1, 2, 4],
-                          'bootstrap': [True, False]}
 
-        self.rf_grid = GridSearchCV(self.deopt_classifier, self.paramgrid, cv=self.stratifiedkfold, refit=True,
+
+        self.rf_grid = GridSearchCV(self.deopt_classifier, param_grid= parameters, cv=self.stratifiedkfold, refit=True,
                                     scoring=scoring_type,
                                     verbose=10, n_jobs=-1)
 
@@ -159,13 +152,14 @@ class RfModel(BaseModel):
 
     def confusion_matrix(self, y_test, y_train, class_estim):
         results_test = confusion_matrix(y_test, self.test_y_predicted, labels=class_estim)
-        results_train = confusion_matrix(y_train, self.train_y_predicted, labels= class_estim)
+        results_train = confusion_matrix(y_train, self.train_y_predicted, labels=class_estim)
         return results_test, results_train
 
     def precision_score_model(self, y_train, y_test):
         score_train = precision_score(y_true=y_train, y_pred=self.train_y_predicted)
         score_test = precision_score(y_true=y_test, y_pred=self.test_y_predicted)
         return score_train, score_test
+
 
 class CBModel(BaseModel):
     model_type = 'CatBoostClass'
@@ -187,7 +181,8 @@ class CBModel(BaseModel):
 
     def gridsearch(self, X_train, y_train, c_weight, catboost_weight: Optional[None], splits: int = 5,
                    scoring_type: str = 'Precision',
-                   kfold_shuffle: bool = True):
+                   kfold_shuffle: bool = True,
+                   parameters = None):
         print('GridSearching CatBoost...')
 
         if scoring_type in self.eval_metric_map:
@@ -200,19 +195,14 @@ class CBModel(BaseModel):
         class_weights = dict(zip(catboost_weight, weights))
 
         self.deopt_classifier = cb.CatBoostClassifier(loss_function='Logloss', eval_metric=scoring,
-                                                      auto_class_weights="Balanced", early_stopping_rounds=100,
+                                                      auto_class_weights="Balanced", early_stopping_rounds=42,
                                                       # class_weights=class_weights,
+
                                                       random_seed=42)
         self.stratifiedkfold = StratifiedKFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
-        self.paramgrid = {
-            'depth': [3, 1, 2, 6, 4, 5, 7, 8, 9, 10]
-                           ,'iterations': [250, 100, 500, 1000]
-            , 'learning_rate': [0.03, 0.001, 0.01, 0.1, 0.2, 0.3]
-                           ,'l2_leaf_reg': [3, 1, 5, 10, 100],
-                          'border_count': [32, 5, 10, 20, 50, 100, 200]
-                          }
 
-        self.cb_grid = self.deopt_classifier.grid_search(self.paramgrid, X_train, y_train, cv=self.stratifiedkfold,
+
+        self.cb_grid = self.deopt_classifier.grid_search(parameters, X_train, y_train, cv=self.stratifiedkfold,
                                                          calc_cv_statistics=True, search_by_train_test_split=True,
                                                          # Set this parameter to true or it does not work "Classlables in
                                                          # dataprocessing option do not match training
@@ -228,7 +218,7 @@ class CBModel(BaseModel):
         # print("Best Test Score: \n{}\n".format(self.cb_grid.best_score_))
         # I believe after the gridsearch is completed, the deoptimised classifier is set with the best params
         self.optimised_model = self.deopt_classifier
-        self.best_score = max(self.cb_grid['cv_results']['test-'+str(scoring_type) +'-mean'])
+        self.best_score = max(self.cb_grid['cv_results']['test-' + str(scoring) + '-mean'])
         return (self.cb_grid['params'], self.best_score)
 
     def fit(self, X_train, y_train):
@@ -258,13 +248,15 @@ class CBModel(BaseModel):
 
     def confusion_matrix(self, y_test, y_train, class_estim):
         results_test = confusion_matrix(y_test, self.test_y_predicted, labels=class_estim)
-        results_train = confusion_matrix(y_train, self.train_y_predicted, labels= class_estim)
+        results_train = confusion_matrix(y_train, self.train_y_predicted, labels=class_estim)
         return results_test, results_train
 
     def precision_score_model(self, y_train, y_test):
         score_train = precision_score(y_true=y_train, y_pred=self.train_y_predicted)
         score_test = precision_score(y_true=y_test, y_pred=self.test_y_predicted)
         return score_train, score_test
+
+
 ####Regregression Models
 
 class SVR_Model(BaseModel):
@@ -289,12 +281,12 @@ class SVR_Model(BaseModel):
         self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
         # TODO Better define params
         self.paramgrid = {'C': [0.01, 0.1],  # np.logspace(-5, 2, 8),
-                         # 'gamma': np.logspace(-3, 1, 5),
+                          # 'gamma': np.logspace(-3, 1, 5),
                           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-                          #'kernel': ['rbf', 'poly', 'sigmoid', 'linear'],
-                          #'coef0': [0, 0.001, 0.1, 1],
-                          #'degree': [1, 3, 4],
-                          #'epsilon': [0.1, 0.2, 0.3, 0.5]
+                          # 'kernel': ['rbf', 'poly', 'sigmoid', 'linear'],
+                          # 'coef0': [0, 0.001, 0.1, 1],
+                          # 'degree': [1, 3, 4],
+                          # 'epsilon': [0.1, 0.2, 0.3, 0.5]
                           }
         # TODO Create kFold&Scoring PARAM choose
         self.svm_grid = GridSearchCV(self.deopt_classifier, self.paramgrid, cv=self.kfold, refit=True,
@@ -303,10 +295,9 @@ class SVR_Model(BaseModel):
                                      scoring=scoring_type)
         self.svm_grid.fit(X_train, y_train)
 
-
-        #print("Best Estimator: \n{}\n".format(self.svm_grid.best_estimator_))
-        #print("Best Parameters: \n{}\n".format(self.svm_grid.best_params_))
-        #print("Best Test Score: \n{}\n".format(self.svm_grid.best_score_))
+        # print("Best Estimator: \n{}\n".format(self.svm_grid.best_estimator_))
+        # print("Best Parameters: \n{}\n".format(self.svm_grid.best_params_))
+        # print("Best Test Score: \n{}\n".format(self.svm_grid.best_score_))
 
         self.optimised_model = self.svm_grid.best_estimator_
         return [self.optimised_model, self.svm_grid.best_score_]
@@ -361,12 +352,12 @@ class RandomForestEnsemble(BaseModel):
         self.paramgrid = {'n_estimators': [int(x) for x in np.linspace(start=200,
                                                                        stop=1000,
                                                                        num=9)],
-                          #'criterion': ['squared_error', 'absolute_error', 'poisson'],
-                          #'max_features': ['auto', 'sqrt', 'log2'],
+                          # 'criterion': ['squared_error', 'absolute_error', 'poisson'],
+                          # 'max_features': ['auto', 'sqrt', 'log2'],
                           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-                         # 'max_depth': [int(x) for x in np.linspace(1, 110,num=12)],
-                          #'bootstrap': [False, True],
-                          #'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)]
+                          # 'max_depth': [int(x) for x in np.linspace(1, 110,num=12)],
+                          # 'bootstrap': [False, True],
+                          # 'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)]
                           }
         # The minimum number of samples required to split an internal node:
         # If int, then consider min_samples_split as the minimum number.
@@ -410,6 +401,7 @@ class RandomForestEnsemble(BaseModel):
 class CatBoostReg(BaseModel):
     model_type = 'CatBoostReg'
     model_category = 'Classification'
+
     def __init__(self):
         self.kfold = None
         self.paramgrid = None
@@ -440,10 +432,10 @@ class CatBoostReg(BaseModel):
 
         self.deopt_classifier = cb.CatBoostRegressor(loss_function='RMSE', random_seed=42, eval_metric=scoring,
                                                      early_stopping_rounds=42)
-        #https://towardsdatascience.com/5-cute-features-of-catboost-61532c260f69
+        # https://towardsdatascience.com/5-cute-features-of-catboost-61532c260f69
         self.paramgrid = {'learning_rate': [0.03, 0.1],
-                          'depth': [2,3,4, 6, 8] #DEFAULT is 6. Decrease value to prevent overfitting
-                          ,'l2_leaf_reg': [3, 5, 7, 9, 12, 13] #Increase the value to prevent overfitting DEFAULT is 3
+                          'depth': [2, 3, 4, 6, 8]  # DEFAULT is 6. Decrease value to prevent overfitting
+            , 'l2_leaf_reg': [3, 5, 7, 9, 12, 13]  # Increase the value to prevent overfitting DEFAULT is 3
                           }
 
         self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
@@ -456,7 +448,7 @@ class CatBoostReg(BaseModel):
         print("Best Estimator: \n{}\n".format(self.cb_grid['params']))
         self.optimised_model = self.deopt_classifier
 
-        self.best_score = max(self.cb_grid['cv_results']['test-' + str(scoring)+ '-mean'])
+        self.best_score = max(self.cb_grid['cv_results']['test-' + str(scoring) + '-mean'])
         return (self.cb_grid['params'], self.best_score)
 
     def fit(self, X_train, y_train):

@@ -4,6 +4,7 @@ from typing import List, Iterator, Callable
 import pickle
 from datetime import datetime
 
+import lime.lime_tabular
 from matplotlib import pyplot as plt
 
 from ToolsActiveLearning import retrieverows
@@ -92,7 +93,7 @@ class CommitteeClassification(ABC):
         except AttributeError:
             raise NotFittedError('Not all estimators are fitted. Fit all estimators before using this method')
 
-    def gridsearch_committee(self):
+    def gridsearch_committee(self, grid_params=None):
         # score_values = np.zeros(shape=[len(self.learner_list), len(self.learner_list), len(self.learner_list)])
 
         score_values = {}
@@ -103,7 +104,8 @@ class CommitteeClassification(ABC):
                                                                   catboost_weight=np.unique(self.y_training),
                                                                   splits=self.splits,
                                                                   scoring_type=self.scoring_type,
-                                                                  kfold_shuffle=self.kfold_shuffle)
+                                                                  kfold_shuffle=self.kfold_shuffle,
+                                                                  parameters = grid_params[str(learner.model_type)])
         return score_values
 
     def fit_data(self, **fit_kwargs):
@@ -181,6 +183,26 @@ class CommitteeClassification(ABC):
             scoring[str(learner.model_type) + '_test'] = score_test
 
         return scoring
+
+    def lime_analysis(self, feat_names, target_names):
+
+        explainer = lime.lime_tabular.LimeTabularExplainer(self.X_training, feature_names=feat_names,
+                                                           class_names=target_names,
+                                                           discretize_continuous=True)
+        #Explaining the instances
+
+        i = np.random.randint(0, self.X_testing.shape[0])
+        for learner_idx, learner in enumerate(self.learner_list):
+            exp = explainer.explain_instance(self.X_testing[i], learner.test_y_predicted, num_features=len(feat_names))
+            exp.sh
+
+        #Extract the Feature Names
+        #Get Class Names
+        #Get Labels
+        #Get the Categorical Features
+        pass
+
+
 class CommitteeRegressor(ABC):
 
     def __init__(self, learner_list: List[BaseModel], X_training, X_testing, y_training, y_testing, X_unlabeled,

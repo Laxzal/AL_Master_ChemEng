@@ -55,8 +55,8 @@ component_1_df['component_1'] = list_component_lipids
 print(component_1_df)
 
 vol_vol_pcnt_1_df = pd.DataFrame(columns=['vol_vol_pcnt_1'])
-vol_vol_pcnt = [90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5]
-vol_vol_pcnt_1_df['vol_vol_pcnt_1'] = [i for i in vol_vol_pcnt if i >= 50]
+vol_vol_pcnt = [0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35, 0.30, 0.25, 0.20, 0.15, 0.10, 0.05]
+vol_vol_pcnt_1_df['vol_vol_pcnt_1'] = [i for i in vol_vol_pcnt if i >= 0.50]
 print(vol_vol_pcnt_1_df)
 '''Creating Component 2 dataframe (Drugs/Vitamins)
 1. Vitamin E
@@ -82,7 +82,7 @@ component_2_df['component_2'] = list_component_drug
 print(component_2_df)
 
 vol_vol_pcnt_2_df = pd.DataFrame(columns=['vol_vol_pcnt_2'])
-vol_vol_pcnt_2_df['vol_vol_pcnt_2'] = [i for i in vol_vol_pcnt if i <= 50]
+vol_vol_pcnt_2_df['vol_vol_pcnt_2'] = [i for i in vol_vol_pcnt if i <= 0.50]
 print(vol_vol_pcnt_2_df)
 
 '''Creating Component 4 DataFrame (Stealth Polymer)
@@ -99,7 +99,7 @@ component_4_df['component_4'] = list_component_polymer
 print(component_4_df)
 
 vol_vol_pcnt_4_df = pd.DataFrame(columns=['vol_vol_pcnt_4'])
-vol_vol_pcnt_4_df['vol_vol_pcnt_4'] = [i for i in vol_vol_pcnt if i <= 10]
+vol_vol_pcnt_4_df['vol_vol_pcnt_4'] = [i for i in vol_vol_pcnt if i <= 0.10]
 
 '''
 Creating the concentration DataFrames for each component
@@ -218,7 +218,7 @@ col_list
 formulation_combination_df['total_pcnt'] = formulation_combination_df[col_list].sum(axis=1)
 print(formulation_combination_df)
 formulation_combination_df = formulation_combination_df.loc[
-    formulation_combination_df['total_pcnt'] == 100].reset_index(drop=True)
+    formulation_combination_df['total_pcnt'] == 1.00].reset_index(drop=True)
 formulation_combination_df.info()
 
 ''' Columns I need to attach to 
@@ -326,10 +326,10 @@ unlabelled_df_merge['Req_Weight_4'] = ((unlabelled_df_merge['Concentration_4'].a
 unlabelled_df_merge['final_lipid_volume'] = unlabelled_df_merge['Lipid_Vol_Pcnt'] * unlabelled_df_merge['Final_Vol']  \
                                             * 1000
 '''component_1_vol'''
-unlabelled_df_merge['component_1_vol'] = (unlabelled_df_merge['Ratio_1'] * unlabelled_df_merge['final_lipid_volume'])/100
-unlabelled_df_merge['component_2_vol'] = (unlabelled_df_merge['Ratio_2'] * unlabelled_df_merge['final_lipid_volume'])/100
-unlabelled_df_merge['component_3_vol'] = (unlabelled_df_merge['Ratio_3'] * unlabelled_df_merge['final_lipid_volume'])/100
-unlabelled_df_merge['component_4_vol'] = (unlabelled_df_merge['Ratio_4'] * unlabelled_df_merge['final_lipid_volume'])/100
+unlabelled_df_merge['component_1_vol'] = (unlabelled_df_merge['Ratio_1'] * unlabelled_df_merge['final_lipid_volume'])
+unlabelled_df_merge['component_2_vol'] = (unlabelled_df_merge['Ratio_2'] * unlabelled_df_merge['final_lipid_volume'])
+unlabelled_df_merge['component_3_vol'] = (unlabelled_df_merge['Ratio_3'] * unlabelled_df_merge['final_lipid_volume'])
+unlabelled_df_merge['component_4_vol'] = (unlabelled_df_merge['Ratio_4'] * unlabelled_df_merge['final_lipid_volume'])
 
 unlabelled_df_merge['component_1_vol_conc'] = unlabelled_df_merge['Concentration_1 (mM)']
 unlabelled_df_merge['component_1_vol_stock'] = unlabelled_df_merge['component_1_vol'] * unlabelled_df_merge[
@@ -353,18 +353,11 @@ unlabelled_df_merge['ethanol_dil'] = (unlabelled_df_merge['component_1_vol'] + \
                                       unlabelled_df_merge['component_3_vol_stock'])
 # TODO Need to create varying component volumes so that dilution is required
 
-unlabelled_df_merge['Final_Concentration'] = ((unlabelled_df_merge['Ratio_1'] * unlabelled_df_merge[
-    'component_1_vol_conc'] * \
-                                               unlabelled_df_merge['final_lipid_volume'] / 1000) + \
-                                              (unlabelled_df_merge['Ratio_2'] * unlabelled_df_merge[
-                                                  'component_2_vol_conc'] * \
-                                               unlabelled_df_merge['final_lipid_volume'] / 1000) + \
-                                              (unlabelled_df_merge['Ratio_3'] * unlabelled_df_merge[
-                                                  'component_3_vol_conc'] * \
-                                               unlabelled_df_merge['final_lipid_volume'] / 1000) + \
-                                              (unlabelled_df_merge['Ratio_4'] * unlabelled_df_merge['Concentration_4'] * \
-                                               unlabelled_df_merge['final_lipid_volume'] / 1000)) / \
-                                             (unlabelled_df_merge['Final_Vol'])
+unlabelled_df_merge['Final_Concentration'] = ((unlabelled_df_merge['Ratio_1'] * unlabelled_df_merge["component_1_vol_conc"] * (
+                unlabelled_df_merge['final_lipid_volume'] / 1000)) + (unlabelled_df_merge['Ratio_2'] * unlabelled_df_merge['component_2_vol_conc'] * (
+                unlabelled_df_merge['final_lipid_volume'] / 1000)) + (unlabelled_df_merge['Ratio_3'] * unlabelled_df_merge['component_3_vol_conc'] * (
+                unlabelled_df_merge['final_lipid_volume'] / 1000)) + (unlabelled_df_merge['Ratio_4'] * unlabelled_df_merge['Concentration_4'] * (
+                unlabelled_df_merge['final_lipid_volume'] / 1000))) / (unlabelled_df_merge['Final_Vol'])
 
 '''Need this for the end'''
 
