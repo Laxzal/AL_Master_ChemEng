@@ -353,18 +353,11 @@ unlabelled_df_merge['ethanol_dil'] = (unlabelled_df_merge['component_1_vol'] + \
                                       unlabelled_df_merge['component_3_vol_stock'])
 # TODO Need to create varying component volumes so that dilution is required
 
-unlabelled_df_merge['Final_Concentration'] = ((unlabelled_df_merge['Ratio_1'] * unlabelled_df_merge[
-    'component_1_vol_conc'] * \
-                                               unlabelled_df_merge['final_lipid_volume'] / 1000) + \
-                                              (unlabelled_df_merge['Ratio_2'] * unlabelled_df_merge[
-                                                  'component_2_vol_conc'] * \
-                                               unlabelled_df_merge['final_lipid_volume'] / 1000) + \
-                                              (unlabelled_df_merge['Ratio_3'] * unlabelled_df_merge[
-                                                  'component_3_vol_conc'] * \
-                                               unlabelled_df_merge['final_lipid_volume'] / 1000) + \
-                                              (unlabelled_df_merge['Ratio_4'] * unlabelled_df_merge['Concentration_4'] * \
-                                               unlabelled_df_merge['final_lipid_volume'] / 1000)) / \
-                                             (unlabelled_df_merge['Final_Vol'])
+unlabelled_df_merge['Final_Concentration'] = ((unlabelled_df_merge['Ratio_1'] * unlabelled_df_merge["component_1_vol_conc"] * (
+                unlabelled_df_merge['final_lipid_volume'] / 1000)) + (unlabelled_df_merge['Ratio_2'] * unlabelled_df_merge['component_2_vol_conc'] * (
+                unlabelled_df_merge['final_lipid_volume'] / 1000)) + (unlabelled_df_merge['Ratio_3'] * unlabelled_df_merge['component_3_vol_conc'] * (
+                unlabelled_df_merge['final_lipid_volume'] / 1000)) + (unlabelled_df_merge['Ratio_4'] * unlabelled_df_merge['Concentration_4'] * (
+                unlabelled_df_merge['final_lipid_volume'] / 1000))) / (unlabelled_df_merge['Final_Vol'])
 
 '''Need this for the end'''
 

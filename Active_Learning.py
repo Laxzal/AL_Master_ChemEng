@@ -67,7 +67,18 @@ def unlabelled_data(file, method):
                    'PdI',
                    'Z-Average (d.nm)',
                    'ES_Aggregation']
+
+    useless_clm_drop = ['Req_Weight_1', 'Ethanol_1',
+                                     'Req_Weight_2', 'Ethanol_2',
+                                     'Req_Weight_3',
+                                     'Req_Weight_4', 'Ethanol_4',
+                                     'ethanol_dil',
+                                     'component_1_vol_stock',
+                                     'component_2_vol_stock',
+                                     'component_3_vol_stock'
+                            ]
     ul_df = ul_df.drop(columns=column_drop)
+    ul_df = ul_df.drop(columns = useless_clm_drop)
     ul_df.replace(np.nan, 'None', inplace=True)
     ul_df = pd.get_dummies(ul_df, columns=["Component_1", "Component_2", "Component_3"],
                            prefix="", prefix_sep="")
