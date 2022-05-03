@@ -232,6 +232,7 @@ class Algorithm(object):
             self.conf_matrix = self.committee_models.confusion_matrix()
             self.precision_scores = self.committee_models.precision_scoring()
             self.models_algorithms = self.committee_models.printname()
+            self.committee_models.lime_analysis()
 
     def compare_query_changes(self):
         selection_df = pd.DataFrame(self.selection_probas_val[1]).reset_index(drop=True)
@@ -427,8 +428,8 @@ SvmModel = {'C': [0.01, 0.1],  # np.logspace(-5, 2, 8),
 
 
 RfModel = {'n_estimators': [int(x) for x in np.linspace(start=200, stop=2000, num=10)],
-                  'max_features': ['auto', 'sqrt'],
-                  'max_depth': [int(x) for x in np.linspace(10, 110, num=11)]
+#                  'max_features': ['auto', 'sqrt'],
+#                  'max_depth': [int(x) for x in np.linspace(10, 35, num=11)]
                   #,'min_samples_split': [2, 5, 10]
                   #,'min_samples_leaf': [1, 2, 4]
                   #,'bootstrap': [True, False]
@@ -436,10 +437,10 @@ RfModel = {'n_estimators': [int(x) for x in np.linspace(start=200, stop=2000, nu
 
 CBModel = {
     'depth': [3, 1, 2, 6, 4, 5, 7, 8, 9, 10]
-    , 'n_estimators': [250, 100, 500, 1000]
-    , 'learning_rate': [0.03, 0.001, 0.01, 0.1, 0.2, 0.3]
-    , 'l2_leaf_reg': [3, 1, 5, 10, 100],
-    'border_count': [32, 5, 10, 20, 50, 100, 200]
+#    , 'n_estimators': [250, 100, 500, 1000]
+#    , 'learning_rate': [0.03, 0.001, 0.01, 0.1, 0.2, 0.3]
+#    , 'l2_leaf_reg': [3, 1, 5, 10, 100],
+#    'border_count': [32, 5, 10, 20, 50, 100, 200]
 }
 
 

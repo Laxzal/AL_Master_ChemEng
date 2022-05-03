@@ -5,7 +5,9 @@ import pickle
 from datetime import datetime
 
 import lime.lime_tabular
+import shap
 from matplotlib import pyplot as plt
+from shapash import SmartExplainer
 
 from ToolsActiveLearning import retrieverows
 import numpy as np
@@ -184,17 +186,27 @@ class CommitteeClassification(ABC):
 
         return scoring
 
-    def lime_analysis(self, feat_names, target_names):
-
-        explainer = lime.lime_tabular.LimeTabularExplainer(self.X_training, feature_names=feat_names,
-                                                           class_names=target_names,
-                                                           discretize_continuous=True)
+    def lime_analysis(self):
+        #feat_names: str = None, target_names: str = None
+        #explainer = lime.lime_tabular.LimeTabularExplainer(self.X_training, feature_names=feat_names,
+                                                          # class_names=target_names,
+                                                          # discretize_continuous=True)
         #Explaining the instances
 
-        i = np.random.randint(0, self.X_testing.shape[0])
+        #i = np.random.randint(0, self.X_testing.shape[0])
+        #for learner_idx, learner in enumerate(self.learner_list):
+        #    exp = explainer.explain_instance(self.X_testing[i], learner.test_y_predicted, num_features=len(feat_names))
+        #    exp.sh
         for learner_idx, learner in enumerate(self.learner_list):
-            exp = explainer.explain_instance(self.X_testing[i], learner.test_y_predicted, num_features=len(feat_names))
-            exp.sh
+            if learner.model_type == ['Random_Forest', 'CatBoost_Class']:
+                xpl = SmartExplainer(model=learner.optimised_model)
+                xpl.compile(x=self.X_testing)
+                app = xpl.run_app(title_story='Test')
+            else:
+                explainer = shap.KernelExplainer(learner.predict_proba, self.X_training)
+                shap_values = explainer.shap_values(self.X_testing)
+                shap.force_plot(explainer.expected_value[0], shap_values[0], self.X_testing)
+
 
         #Extract the Feature Names
         #Get Class Names
