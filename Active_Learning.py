@@ -25,7 +25,7 @@ from Cluster import KMeans_Cluster, HDBScan
 from CommitteeClass import CommitteeRegressor, CommitteeClassification
 from DataLoad import Data_Load_Split
 from DiversitySampling_Clustering import DiversitySampling
-from Models import SvmModel, RfModel, CBModel
+from Models import SvmModel, RfModel, CBModel, SVR_Model, RandomForestEnsemble, CatBoostReg
 from PreProcess import MinMaxScaling
 from QueriesCommittee import max_disagreement_sampling, max_std_sampling
 from SelectionFunctions import SelectionFunction
@@ -101,12 +101,13 @@ class Algorithm(object):
     accuracies = []
 
     def __init__(self, model_object, model_type,
+                 save_path: Optional[str],
                  scoring_type: str,
                  hide: str = None,
                  select: Callable = SelectionFunction.entropy_sampling,
                  file: str = 'unlabelled_data_full.csv',
                  limit: int = -1, perc_uncertain: float = 0.1, n_instances: Union[int, str] = 'Full',
-                 split_ratio: float = 0.2,
+                 split_ratio: float = 0.2
                  ):
         self.regression = None
         self.similarity_score = None
@@ -114,6 +115,7 @@ class Algorithm(object):
         assert perc_uncertain <= 1
         assert model_type in ['Classification', 'Regression']
         self.today_date = datetime.today().strftime('%Y%m%d')
+        self.today_date_time = datetime.today().strftime('%Y%m%d_%H%M_incomplete')
         self.model_test = None
         self.optimised_classifier = None
         self.model_object = model_object
@@ -131,6 +133,7 @@ class Algorithm(object):
         self.hide = hide
         self.classification = None
         self.scoring_type = scoring_type
+        self.save_path = save_path
 
         #######New Data - from self.create_data()/self.normalise_data()
         self.X_val = None
@@ -144,9 +147,23 @@ class Algorithm(object):
         self.best_k = None
         self.results = None
         ##############Things to run
-
+        self.create_save_folder()
         self.create_data()
         self.normalise_data()
+
+    def create_save_folder(self):
+        dirName = self.today_date_time
+
+        try:
+            #Create Directory
+            save_folder = os.path.join(self.save_path, dirName)
+            os.mkdir(save_folder)
+            print("Directory ", dirName, " Created ")
+            self.save_path = save_folder
+        except FileExistsError:
+            print("Directory ", dirName, " already exists")
+
+
 
     def create_data(self):
 
@@ -210,6 +227,7 @@ class Algorithm(object):
             self.score_data = self.committee_models.score()
             self.selection_probas_val = self.committee_models.query(self.committee_models, n_instances=self.n_instances)
             self.models_algorithms = self.committee_models.printname()
+            self.committee_models.lime_analysis(self.columns_x_val, save_path=self.save_path)
 
     def classification_model(self, splits: int = 5, grid_params = None):
         if type(self.model_object) is list:
@@ -232,7 +250,7 @@ class Algorithm(object):
             self.conf_matrix = self.committee_models.confusion_matrix()
             self.precision_scores = self.committee_models.precision_scoring()
             self.models_algorithms = self.committee_models.printname()
-            self.committee_models.lime_analysis()
+            self.committee_models.lime_analysis(self.columns_x_val, save_path=self.save_path)
 
     def compare_query_changes(self):
         selection_df = pd.DataFrame(self.selection_probas_val[1]).reset_index(drop=True)
@@ -352,9 +370,12 @@ class Algorithm(object):
         df_scores = pd.DataFrame.from_dict(self.scores, orient='index').T
         df_scores['average_score'] = df_scores[1:].sum(axis=1) / len(self.model_object)
 
-        writer = pd.ExcelWriter(
-            str(self.models_algorithms) + '_Ouput_Selection_' + str(self.select.__name__) + '_' + str(
-                self.today_date) + '.xlsx',
+        file_name = str(self.models_algorithms) + '_Ouput_Selection_' + str(self.select.__name__) + '_' + str(
+                self.today_date) + '.xlsx'
+        file_name = os.path.join(self.save_path,file_name)
+
+        writer = pd.ExcelWriter(file_name
+            ,
             engine='xlsxwriter')
         df_info.to_excel(writer,
                          index=False, startrow=1)
@@ -392,7 +413,6 @@ class Algorithm(object):
                 temp_df.to_excel(writer, sheet_name=str(k))
                 worksheet = writer.sheets[str(k)]
                 worksheet.insert_image('C2', str(k) + ".png")
-            writer.save()
 
         elif self.regression == 1:
             df_scores_data = pd.DataFrame.from_dict(self.score_data, orient='index').T
@@ -404,7 +424,13 @@ class Algorithm(object):
                 os.chdir(regression_output_path_2)
                 print("Utilising Home Pathway")
 
-            writer.save()
+        writer.save()
+
+    def change_folder_name_complete(self):
+
+        old_name = self.save_path
+        new_name = old_name.replace('incomplete', 'complete')
+        os.rename(old_name, new_name)
 
 
 
@@ -415,8 +441,8 @@ class Algorithm(object):
 
 
 
-models = [SvmModel, RfModel, CBModel]
-# models = [SVR_Model, RandomForestEnsemble, CatBoostReg]
+#models = [SvmModel, RfModel, CBModel]
+models = [SVR_Model, RandomForestEnsemble, CatBoostReg]
 # selection_functions = [selection_functions]
 
 SvmModel = {'C': [0.01, 0.1],  # np.logspace(-5, 2, 8),
@@ -443,16 +469,48 @@ CBModel = {
 #    'border_count': [32, 5, 10, 20, 50, 100, 200]
 }
 
-
+SVM_Reg = {'C': [0, 0.001,0.01, 0.1],  # np.logspace(-5, 2, 8),
+                  'gamma': np.logspace(-3, 1, 5),
+                  # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
+                  'kernel': ['rbf',
+                             #'poly',
+                             'sigmoid',
+                             'linear']
+                  ,'coef0': [0, 0.001, 0.1, 1],
+                  #'degree': [1, 3, 4],
+                  'epsilon': [0.001,0.1, 0.2, 0.3, 0.5]
+                  }
+RFE_Reg = {'n_estimators': [int(x) for x in np.linspace(start=200,
+                                                               stop=1000,
+                                                               num=9)],
+                  # 'criterion': ['squared_error', 'absolute_error', 'poisson'],
+                  # 'max_features': ['auto', 'sqrt', 'log2'],
+                  # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
+                  # 'max_depth': [int(x) for x in np.linspace(1, 110,num=12)],
+                  # 'bootstrap': [False, True],
+                  # 'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)]
+                  }
+CatBoost_Reg= {'learning_rate': [0.03, 0.1],
+                  'depth': [2, 3, 4, 6, 8]  # DEFAULT is 6. Decrease value to prevent overfitting
+    , 'l2_leaf_reg': [3, 5, 7, 9, 12, 13]  # Increase the value to prevent overfitting DEFAULT is 3
+                  }
 grid_params = {}
 grid_params['SVC']= SvmModel
 grid_params['Random_Forest'] = RfModel
 grid_params['CatBoostClass'] = CBModel
+grid_params['SVR'] = SVM_Reg
+grid_params['RFE_Regressor'] = RFE_Reg
+grid_params['CatBoostReg'] = CatBoost_Reg
 
 
-alg = Algorithm(models, select=max_disagreement_sampling, model_type='Classification',
-                scoring_type='precision')
+
+
+save_path = regression_output_path_1
+alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
+                scoring_type='r2', save_path=save_path)
+
 alg.run_algorithm(splits=5, grid_params=grid_params)
 alg.compare_query_changes()
 alg.similairty_scoring(method='gower', threshold=0.25, n_instances=100)
 alg.output_data()
+alg.change_folder_name_complete()

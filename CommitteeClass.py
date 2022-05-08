@@ -1,6 +1,7 @@
 import abc
+import os.path
 import sys
-from typing import List, Iterator, Callable
+from typing import List, Iterator, Callable, Optional
 import pickle
 from datetime import datetime
 
@@ -107,7 +108,7 @@ class CommitteeClassification(ABC):
                                                                   splits=self.splits,
                                                                   scoring_type=self.scoring_type,
                                                                   kfold_shuffle=self.kfold_shuffle,
-                                                                  parameters = grid_params[str(learner.model_type)])
+                                                                  parameters=grid_params[str(learner.model_type)])
         return score_values
 
     def fit_data(self, **fit_kwargs):
@@ -180,39 +181,68 @@ class CommitteeClassification(ABC):
         for learner_idx, learner in enumerate(self.learner_list):
             if learner.train_y_predicted is None:
                 learner.predict_labelled(self.X_training, self.X_testing)
-            score_train, score_test = learner.precision_score_model(y_train = self.y_training, y_test = self.y_testing)
+            score_train, score_test = learner.precision_score_model(y_train=self.y_training, y_test=self.y_testing)
             scoring[str(learner.model_type) + '_train'] = score_train
             scoring[str(learner.model_type) + '_test'] = score_test
 
         return scoring
 
-    def lime_analysis(self):
-        #feat_names: str = None, target_names: str = None
-        #explainer = lime.lime_tabular.LimeTabularExplainer(self.X_training, feature_names=feat_names,
-                                                          # class_names=target_names,
-                                                          # discretize_continuous=True)
-        #Explaining the instances
+    def lime_analysis(self, feature_names, save_path):
+        # feat_names: str = None, target_names: str = None
+        # explainer = lime.lime_tabular.LimeTabularExplainer(self.X_training, feature_names=feat_names,
+        # class_names=target_names,
+        # discretize_continuous=True)
+        # Explaining the instances
 
-        #i = np.random.randint(0, self.X_testing.shape[0])
-        #for learner_idx, learner in enumerate(self.learner_list):
+        # i = np.random.randint(0, self.X_testing.shape[0])
+        # for learner_idx, learner in enumerate(self.learner_list):
         #    exp = explainer.explain_instance(self.X_testing[i], learner.test_y_predicted, num_features=len(feat_names))
         #    exp.sh
         for learner_idx, learner in enumerate(self.learner_list):
-            if learner.model_type == ['Random_Forest', 'CatBoost_Class']:
-                xpl = SmartExplainer(model=learner.optimised_model)
-                xpl.compile(x=self.X_testing)
-                app = xpl.run_app(title_story='Test')
-            else:
-                explainer = shap.KernelExplainer(learner.predict_proba, self.X_training)
-                shap_values = explainer.shap_values(self.X_testing)
-                shap.force_plot(explainer.expected_value[0], shap_values[0], self.X_testing)
+            # if learner.model_type == ['Random_Forest', 'CatBoost_Class']:
+            # xpl = SmartExplainer(model=learner.optimised_model)
+            # xpl.compile(x=self.X_testing)
+            # app = xpl.run_app(title_story='Test')
 
+            explainer = shap.KernelExplainer(learner.predict_proba, self.X_training)
+            shap_values = explainer.shap_values(self.X_testing)
+            f = shap.force_plot(explainer.expected_value[0], shap_values[0], self.X_testing,
+                                feature_names=feature_names)
+            html_name = str(learner.model_type) + "_all_test_values_Classification.html"
+            html_name = os.path.join(save_path, html_name)
+            shap.save_html(html_name, f)
 
-        #Extract the Feature Names
-        #Get Class Names
-        #Get Labels
-        #Get the Categorical Features
-        pass
+            f = lambda x: learner.predict_proba(x)[:, 1]
+            med = np.median(self.X_training, axis=0).reshape((1, self.X_training.shape[1]))
+            explainer = shap.KernelExplainer(f, med)
+            shap_values_single = explainer.shap_values(self.X_training[0, :], nsamples=1000)
+            z = shap.force_plot(explainer.expected_value, shap_values_single, feature_names=feature_names)
+            html_name = str(learner.model_type) + "_single_median_training_Classification.html"
+            html_name = os.path.join(save_path, html_name)
+            shap.save_html(html_name, z)
+
+            fig = plt.gcf()
+            shap_values_single = explainer.shap_values(self.X_testing[0:len(self.X_testing), :],
+                                                       nsamples=len(self.X_testing))
+            shap.summary_plot(shap_values_single, self.X_testing[0:len(self.X_testing), :],
+                              feature_names=feature_names)
+            fig_name = str(learner.model_type) + "summary_dot_x_test_single_median_Classification.jpg"
+            fig_name = os.path.join(save_path, fig_name)
+            fig.savefig(fig_name, bbox_inches='tight')
+
+            fig_bar = plt.gcf()
+            shap_values_single = explainer.shap_values(self.X_testing[0:len(self.X_testing), :],
+                                                       nsamples=len(self.X_testing))
+            shap.summary_plot(shap_values_single, self.X_testing[0:len(self.X_testing), :],
+                              feature_names=feature_names, plot_type="bar")
+            fig_name = str(learner.model_type) + "_summary_plot_x_testing_bar_Classification.jpg"
+            fig_name = os.path.join(save_path, fig_name)
+            fig_bar.savefig(fig_name, bbox_inches='tight')
+
+        # Extract the Feature Names
+        # Get Class Names
+        # Get Labels
+        # Get the Categorical Features
 
 
 class CommitteeRegressor(ABC):
@@ -295,11 +325,14 @@ class CommitteeRegressor(ABC):
         except AttributeError:
             raise NotFittedError('Not all estimators are fitted. Fit all estimators before using this method')
 
-    def gridsearch_committee(self):
+    def gridsearch_committee(self, grid_params: dict = None):
         score_values = {}
-        for learner_idx,  learner in enumerate(self.learner_list):
-            score_values[learner.model_type] = learner.gridsearch(X_train=self.X_training, y_train=self.y_training, splits=self.splits,
-                               kfold_shuffle=self.kfold_shuffle, scoring_type=self.scoring_type)
+        for learner_idx, learner in enumerate(self.learner_list):
+            score_values[learner.model_type] = learner.gridsearch(X_train=self.X_training, y_train=self.y_training,
+                                                                  splits=self.splits,
+                                                                  kfold_shuffle=self.kfold_shuffle,
+                                                                  scoring_type=self.scoring_type,
+                                                                  params=grid_params[str(learner.model_type)])
 
         return score_values
 
@@ -355,3 +388,45 @@ class CommitteeRegressor(ABC):
             scores[str(learner.model_type) + '_test'] = np.array([str(self.scoring_type), test_strat])
 
         return scores
+
+    def lime_analysis(self, feature_names, save_path: Optional[str]):
+        # feat_names: str = None, target_names: str = None
+        # explainer = lime.lime_tabular.LimeTabularExplainer(self.X_training, feature_names=feat_names,
+        # class_names=target_names,
+        # discretize_continuous=True)
+        # Explaining the instances
+
+        # i = np.random.randint(0, self.X_testing.shape[0])
+        # for learner_idx, learner in enumerate(self.learner_list):
+        #    exp = explainer.explain_instance(self.X_testing[i], learner.test_y_predicted, num_features=len(feat_names))
+        #    exp.sh
+        for learner_idx, learner in enumerate(self.learner_list):
+            # if learner.model_type == ['Random_Forest', 'CatBoost_Class']:
+            # xpl = SmartExplainer(model=learner.optimised_model)
+            # xpl.compile(x=self.X_testing)
+            # app = xpl.run_app(title_story='Test')
+            # https://towardsdatascience.com/explain-any-models-with-the-shap-values-use-the-kernelexplainer-79de9464897a
+            X_train_means = shap.kmeans(self.X_training, 9)
+            ex = shap.KernelExplainer(learner.predict, X_train_means)
+            ex.shap_values(self.X_training[0, :], nsamples=1000)
+            shap_values = ex.shap_values(self.X_testing[0, :])
+            f = shap.force_plot(ex.expected_value, shap_values, self.X_testing[0, :], feature_names=feature_names)
+            html_name = str(learner.model_type) + "_single_prediction_test_test_Regression.html"
+            html_name = os.path.join(save_path, html_name)
+            shap.save_html(html_name, f)
+
+            shap_values = ex.shap_values(self.X_testing)
+            fig = plt.gcf()
+            shap.summary_plot(shap_values, self.X_testing, feature_names=feature_names)
+            fig_summary = str(learner.model_type) + "_all_predictions_test_Regression.jpg"
+            fig_summary = os.path.join(save_path, fig_summary)
+            fig.savefig(fig_summary, bbox_inches='tight')
+
+            if learner.model_type in ['RFE_Regressor', 'CatBoostReg']:
+                explainer = shap.KernelExplainer(learner.predict, self.X_training) #I changed this from Tree Explainer(learner.optimised_model) to KernelExplainer to do nsamples
+                shap_values = explainer.shap_values(self.X_unlabeled[0:1000, :], nsamples=1000)
+                fig = plt.gcf()
+                shap.summary_plot(shap_values, self.X_unlabeled[0:1000, :], feature_names=feature_names)
+                fig_summary = str(learner.model_type) + "_all_predictions_unlabelled_regression.jpg"
+                fig_summary = os.path.join(save_path, fig_summary)
+                fig.savefig(fig_summary, bbox_inches='tight')

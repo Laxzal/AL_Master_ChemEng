@@ -274,22 +274,15 @@ class SVR_Model(BaseModel):
         self.deopt_classifier = None
         self.train_y_predicted = None
 
-    def gridsearch(self, X_train, y_train, splits: int = 5, kfold_shuffle: bool = True,
+    def gridsearch(self, X_train, y_train, params: dict=None, splits: int = 5, kfold_shuffle: bool = True,
                    scoring_type: str = 'explained_variance'):
         print("GridSearching SVR...")
         self.deopt_classifier = SVR()
         self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
         # TODO Better define params
-        self.paramgrid = {'C': [0.01, 0.1],  # np.logspace(-5, 2, 8),
-                          # 'gamma': np.logspace(-3, 1, 5),
-                          # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-                          # 'kernel': ['rbf', 'poly', 'sigmoid', 'linear'],
-                          # 'coef0': [0, 0.001, 0.1, 1],
-                          # 'degree': [1, 3, 4],
-                          # 'epsilon': [0.1, 0.2, 0.3, 0.5]
-                          }
+
         # TODO Create kFold&Scoring PARAM choose
-        self.svm_grid = GridSearchCV(self.deopt_classifier, self.paramgrid, cv=self.kfold, refit=True,
+        self.svm_grid = GridSearchCV(self.deopt_classifier,param_grid=params , cv=self.kfold, refit=True,
                                      n_jobs=-1,
                                      verbose=10,
                                      scoring=scoring_type)
@@ -329,7 +322,7 @@ class SVR_Model(BaseModel):
 
 
 class RandomForestEnsemble(BaseModel):
-    model_type = 'RandomForestEnsembler Regressor'
+    model_type = 'RFE_Regressor'
     model_category = 'Regression'
 
     def __init__(self):
@@ -343,28 +336,19 @@ class RandomForestEnsemble(BaseModel):
         self.deopt_classifier = None
         self.train_y_predicted = None
 
-    def gridsearch(self, X_train, y_train, splits: int = 5, kfold_shuffle: bool = True,
+    def gridsearch(self, X_train, y_train, params: dict=None, splits: int = 5, kfold_shuffle: bool = True,
                    scoring_type: str = 'explained_variance'):
         print("GridSearching RandomForestRegressor...")
         self.deopt_classifier = RandomForestRegressor(random_state=42)
         self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
         # TODO Better define params
-        self.paramgrid = {'n_estimators': [int(x) for x in np.linspace(start=200,
-                                                                       stop=1000,
-                                                                       num=9)],
-                          # 'criterion': ['squared_error', 'absolute_error', 'poisson'],
-                          # 'max_features': ['auto', 'sqrt', 'log2'],
-                          # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-                          # 'max_depth': [int(x) for x in np.linspace(1, 110,num=12)],
-                          # 'bootstrap': [False, True],
-                          # 'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)]
-                          }
+
         # The minimum number of samples required to split an internal node:
         # If int, then consider min_samples_split as the minimum number.
         # If float, then min_samples_split is a percentage and ceil(min_samples_split * n_samples)
         # are the minimum number of samples for each split.
         # TODO Create kFold&Scoring PARAM choose
-        self.rf_grid = GridSearchCV(self.deopt_classifier, self.paramgrid, cv=self.kfold, refit=True,
+        self.rf_grid = GridSearchCV(self.deopt_classifier, param_grid=params, cv=self.kfold, refit=True,
                                     n_jobs=-1,
                                     verbose=10,
                                     scoring=scoring_type)
@@ -420,7 +404,7 @@ class CatBoostReg(BaseModel):
                                 'neg_mean_absolute_percentage_error': 'MAPE',
                                 'neg_median_absolute_error': 'MedianAbsoluteError'}
 
-    def gridsearch(self, X_train, y_train, splits: int = 5, kfold_shuffle: bool = True,
+    def gridsearch(self, X_train, y_train, params: dict=None, splits: int = 5, kfold_shuffle: bool = True,
                    scoring_type: str = 'Poisson'):
         print('Gridsearching CatBoost Regressor...')
 
@@ -433,14 +417,11 @@ class CatBoostReg(BaseModel):
         self.deopt_classifier = cb.CatBoostRegressor(loss_function='RMSE', random_seed=42, eval_metric=scoring,
                                                      early_stopping_rounds=42)
         # https://towardsdatascience.com/5-cute-features-of-catboost-61532c260f69
-        self.paramgrid = {'learning_rate': [0.03, 0.1],
-                          'depth': [2, 3, 4, 6, 8]  # DEFAULT is 6. Decrease value to prevent overfitting
-            , 'l2_leaf_reg': [3, 5, 7, 9, 12, 13]  # Increase the value to prevent overfitting DEFAULT is 3
-                          }
+
 
         self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
 
-        self.cb_grid = self.deopt_classifier.grid_search(self.paramgrid, X_train, y_train, cv=self.kfold,
+        self.cb_grid = self.deopt_classifier.grid_search(params, X_train, y_train, cv=self.kfold,
                                                          calc_cv_statistics=True, refit=True, verbose=10, shuffle=False,
                                                          log_cout=sys.stdout,
                                                          log_cerr=sys.stderr
