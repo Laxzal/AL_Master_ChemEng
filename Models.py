@@ -5,11 +5,12 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import confusion_matrix, precision_score
 from sklearn.model_selection import StratifiedKFold, GridSearchCV, KFold
-from sklearn.svm import SVC, SVR
+from sklearn.svm import SVC, SVR, LinearSVR
 import catboost as cb
 from sklearn.utils import compute_class_weight
 
 from BaseModel import BaseModel
+from MSVR import MSVR
 
 
 class SvmModel(BaseModel):
@@ -275,7 +276,7 @@ class SVR_Model(BaseModel):
         self.train_y_predicted = None
 
     def gridsearch(self, X_train, y_train, params: dict=None, splits: int = 5, kfold_shuffle: bool = True,
-                   scoring_type: str = 'explained_variance'):
+                   scoring_type: str = 'explained_variance', verbose: int = 0):
         print("GridSearching SVR...")
         self.deopt_classifier = SVR()
         self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
@@ -284,7 +285,7 @@ class SVR_Model(BaseModel):
         # TODO Create kFold&Scoring PARAM choose
         self.svm_grid = GridSearchCV(self.deopt_classifier,param_grid=params , cv=self.kfold, refit=True,
                                      n_jobs=-1,
-                                     verbose=10,
+                                     verbose=verbose,
                                      scoring=scoring_type)
         self.svm_grid.fit(X_train, y_train)
 
@@ -337,7 +338,7 @@ class RandomForestEnsemble(BaseModel):
         self.train_y_predicted = None
 
     def gridsearch(self, X_train, y_train, params: dict=None, splits: int = 5, kfold_shuffle: bool = True,
-                   scoring_type: str = 'explained_variance'):
+                   scoring_type: str = 'explained_variance', verbose: int = 0):
         print("GridSearching RandomForestRegressor...")
         self.deopt_classifier = RandomForestRegressor(random_state=42)
         self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
@@ -350,7 +351,7 @@ class RandomForestEnsemble(BaseModel):
         # TODO Create kFold&Scoring PARAM choose
         self.rf_grid = GridSearchCV(self.deopt_classifier, param_grid=params, cv=self.kfold, refit=True,
                                     n_jobs=-1,
-                                    verbose=10,
+                                    verbose=verbose,
                                     scoring=scoring_type)
         self.rf_grid.fit(X_train, y_train)
 
@@ -384,7 +385,7 @@ class RandomForestEnsemble(BaseModel):
 
 class CatBoostReg(BaseModel):
     model_type = 'CatBoostReg'
-    model_category = 'Classification'
+    model_category = 'Regression'
 
     def __init__(self):
         self.kfold = None
@@ -405,7 +406,7 @@ class CatBoostReg(BaseModel):
                                 'neg_median_absolute_error': 'MedianAbsoluteError'}
 
     def gridsearch(self, X_train, y_train, params: dict=None, splits: int = 5, kfold_shuffle: bool = True,
-                   scoring_type: str = 'Poisson'):
+                   scoring_type: str = 'Poisson', verbose: int = 0):
         print('Gridsearching CatBoost Regressor...')
 
         if scoring_type in self.eval_metric_map:
@@ -422,7 +423,7 @@ class CatBoostReg(BaseModel):
         self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
 
         self.cb_grid = self.deopt_classifier.grid_search(params, X_train, y_train, cv=self.kfold,
-                                                         calc_cv_statistics=True, refit=True, verbose=10, shuffle=False,
+                                                         calc_cv_statistics=True, refit=True, verbose=verbose, shuffle=False,
                                                          log_cout=sys.stdout,
                                                          log_cerr=sys.stderr
                                                          )
@@ -451,3 +452,123 @@ class CatBoostReg(BaseModel):
         self.test_y_predicted = self.optimised_model.predict(X_test)
 
         return self.train_y_predicted, self.test_y_predicted
+
+class SVRLinear(BaseModel):
+
+    model_type = 'SVR_Linear'
+    model_category = 'Regression'
+
+    def __init__(self):
+        self.kfold = None
+        self.paramgrid = None
+        self.proba = None
+        self.optimised_model = None
+        self.val_y_predicted = None
+        self.test_y_predicted = None
+        self.stratifiedkfold = None
+        self.deopt_classifier = None
+        self.train_y_predicted = None
+    def gridsearch(self, X_train, y_train, params: dict=None, splits: int = 5, kfold_shuffle: bool = True,
+                   scoring_type: str = 'explained_variance', verbose: int=0):
+        print("GridSearching SVRLinear...")
+        self.deopt_classifier = LinearSVR(random_state=42)
+        self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
+        # TODO Better define params
+
+        # TODO Create kFold&Scoring PARAM choose
+        self.svm_grid = GridSearchCV(self.deopt_classifier,param_grid=params , cv=self.kfold, refit=True,
+                                     n_jobs=-1,
+                                     verbose=verbose,
+                                     scoring=scoring_type)
+        self.svm_grid.fit(X_train, y_train)
+
+        # print("Best Estimator: \n{}\n".format(self.svm_grid.best_estimator_))
+        # print("Best Parameters: \n{}\n".format(self.svm_grid.best_params_))
+        # print("Best Test Score: \n{}\n".format(self.svm_grid.best_score_))
+        self.optimised_model = self.svm_grid.best_estimator_
+        return [self.optimised_model, self.svm_grid.best_score_]
+
+    def fit(self, X_train, y_train):
+        print('Training ', self.model_type)
+        self.optimised_model.fit(X_train, y_train)
+        print('Completed Training')
+
+        return self.optimised_model
+    def predict(self, X_val):
+        print('Predicting unlabelled...')
+        self.val_y_predicted = self.optimised_model.predict(X_val)
+
+        return self.val_y_predicted
+
+    def predict_labelled(self, X_train, X_test):
+        print('Predicting labelled...')
+        self.train_y_predicted = self.optimised_model.predict(X_train)
+        self.test_y_predicted = self.optimised_model.predict(X_test)
+
+        return self.train_y_predicted, self.test_y_predicted
+
+    def predict_proba(self, X_val):
+        print('Proba prediction...')
+        self.proba = self.optimised_model.predict_proba(X_val)
+        return self.proba
+
+
+
+class Multi_SVR(BaseModel):
+
+    def __init__(self):
+        self.kfold = None
+        self.paramgrid = None
+        self.proba = None
+        self.optimised_model = None
+        self.val_y_predicted = None
+        self.test_y_predicted = None
+        self.stratifiedkfold = None
+        self.deopt_classifier = None
+        self.train_y_predicted = None
+
+
+    def gridsearch(self, X_train, y_train, params: dict=None, splits: int = 5, kfold_shuffle: bool = True,
+                   scoring_type: str = 'explained_variance'):
+        print("GridSearching SVR...")
+        self.deopt_classifier = MSVR(kernel='rbf', gamma=0.1, epsilon=0.001)
+        self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
+        # TODO Better define params
+
+        # TODO Create kFold&Scoring PARAM choose
+        self.svm_grid = GridSearchCV(self.deopt_classifier,param_grid=params , cv=self.kfold, refit=True,
+                                     n_jobs=-1,
+                                     verbose=10,
+                                     scoring=scoring_type)
+        self.svm_grid.fit(X_train, y_train)
+
+        # print("Best Estimator: \n{}\n".format(self.svm_grid.best_estimator_))
+        # print("Best Parameters: \n{}\n".format(self.svm_grid.best_params_))
+        # print("Best Test Score: \n{}\n".format(self.svm_grid.best_score_))
+
+        self.optimised_model = self.svm_grid.best_estimator_
+        return [self.optimised_model, self.svm_grid.best_score_]
+    def fit(self, X_train, y_train):
+        print('Training ', self.model_type)
+        self.optimised_model.fit(X_train, y_train)
+        print('Completed Training')
+
+        return self.optimised_model
+
+    def predict(self, X_val):
+        print('Predicting unlabelled...')
+        self.val_y_predicted = self.optimised_model.predict(X_val)
+
+        return self.val_y_predicted
+
+    def predict_labelled(self, X_train, X_test):
+        print('Predicting labelled...')
+        self.train_y_predicted = self.optimised_model.predict(X_train)
+        self.test_y_predicted = self.optimised_model.predict(X_test)
+
+        return self.train_y_predicted, self.test_y_predicted
+
+    def predict_proba(self, X_val):
+        print('Proba prediction...')
+        self.proba = self.optimised_model.predict_proba(X_val)
+        return self.proba

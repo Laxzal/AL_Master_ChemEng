@@ -87,6 +87,7 @@ class Data_Load_Split(object):
         self.X = None
         self.y = None
         self.hide = None
+        self.columns_converted =[]
         ###Functions to be run Automatically
         self.initial_read_file()
         self.label_encode()
@@ -135,7 +136,10 @@ class Data_Load_Split(object):
         # TODO Add in Component 4 into 'columns = ' when it becomes relevant. Currently not relevant due to PEG
         self.dum = self.dum.groupby(level=0, axis=1, sort=False).sum()
 
-        return self.dum
+
+
+
+
 
     def filter_table(self):
         if self.hide_component is not None:
@@ -187,6 +191,16 @@ class Data_Load_Split(object):
             elif self.alg_categ in {'Regression'}:
                 x_table = self.dum.drop(['Z-Average (d.nm)'], axis=1).reset_index(drop=True)
             self.X = x_table.values
+
+        for i in x_table.columns:
+            if (x_table[str(i)].isin([0, 1]).all()) == True:
+                self.columns_converted.append(True)
+            else:
+                self.columns_converted.append(False)
+
+        return self.dum
+
+
 
         return self.X
 

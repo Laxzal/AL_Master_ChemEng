@@ -325,14 +325,15 @@ class CommitteeRegressor(ABC):
         except AttributeError:
             raise NotFittedError('Not all estimators are fitted. Fit all estimators before using this method')
 
-    def gridsearch_committee(self, grid_params: dict = None):
+    def gridsearch_committee(self, grid_params: dict = None, verbose: int = 0):
         score_values = {}
         for learner_idx, learner in enumerate(self.learner_list):
             score_values[learner.model_type] = learner.gridsearch(X_train=self.X_training, y_train=self.y_training,
                                                                   splits=self.splits,
                                                                   kfold_shuffle=self.kfold_shuffle,
                                                                   scoring_type=self.scoring_type,
-                                                                  params=grid_params[str(learner.model_type)])
+                                                                  params=grid_params[str(learner.model_type)],
+                                                                  verbose=verbose)
 
         return score_values
 
@@ -362,9 +363,9 @@ class CommitteeRegressor(ABC):
 
     def query(self, committee: BaseModel, *query_args, **query_kwargs):
 
-        query_result = self.query_strategy(committee, self.X_unlabeled, *query_args, **query_kwargs)
+        query_result, query_score = self.query_strategy(committee, self.X_unlabeled, *query_args, **query_kwargs)
         query_result = tuple((query_result, retrieverows(self.X_unlabeled, query_result)))
-        return query_result
+        return query_result, query_score
 
     def score(self, **predict_kwargs):
 
@@ -389,7 +390,7 @@ class CommitteeRegressor(ABC):
 
         return scores
 
-    def lime_analysis(self, feature_names, save_path: Optional[str]):
+    def lime_analysis(self, feature_names, save_path: Optional[str], skip_unlabelled_analysis: bool=False):
         # feat_names: str = None, target_names: str = None
         # explainer = lime.lime_tabular.LimeTabularExplainer(self.X_training, feature_names=feat_names,
         # class_names=target_names,
@@ -421,12 +422,12 @@ class CommitteeRegressor(ABC):
             fig_summary = str(learner.model_type) + "_all_predictions_test_Regression.jpg"
             fig_summary = os.path.join(save_path, fig_summary)
             fig.savefig(fig_summary, bbox_inches='tight')
-
-            if learner.model_type in ['RFE_Regressor', 'CatBoostReg']:
-                explainer = shap.KernelExplainer(learner.predict, self.X_training) #I changed this from Tree Explainer(learner.optimised_model) to KernelExplainer to do nsamples
-                shap_values = explainer.shap_values(self.X_unlabeled[0:1000, :], nsamples=1000)
-                fig = plt.gcf()
-                shap.summary_plot(shap_values, self.X_unlabeled[0:1000, :], feature_names=feature_names)
-                fig_summary = str(learner.model_type) + "_all_predictions_unlabelled_regression.jpg"
-                fig_summary = os.path.join(save_path, fig_summary)
-                fig.savefig(fig_summary, bbox_inches='tight')
+            if skip_unlabelled_analysis == False:
+                if learner.model_type in ['RFE_Regressor', 'CatBoostReg']:
+                    explainer = shap.KernelExplainer(learner.predict, self.X_training) #I changed this from Tree Explainer(learner.optimised_model) to KernelExplainer to do nsamples
+                    shap_values = explainer.shap_values(self.X_unlabeled[0:1000, :], nsamples=1000)
+                    fig = plt.gcf()
+                    shap.summary_plot(shap_values, self.X_unlabeled[0:1000, :], feature_names=feature_names)
+                    fig_summary = str(learner.model_type) + "_all_predictions_unlabelled_regression.jpg"
+                    fig_summary = os.path.join(save_path, fig_summary)
+                    fig.savefig(fig_summary, bbox_inches='tight')

@@ -147,5 +147,5 @@ def max_std_sampling(regressor: CommitteeRegressor, X_unlabeled: np.ndarray, n_i
     std = std.reshape(X_unlabeled.shape[0], )
 
     if not random_tie_break:
-        return multi_argmax(std, n_instances=n_instances)
-    return shuffled_argmax(std, n_instances=n_instances)
+        return multi_argmax(std, n_instances=n_instances), std
+    return shuffled_argmax(std, n_instances=n_instances), std

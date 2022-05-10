@@ -10,7 +10,7 @@ class Similarity():
         self.unlabeled_data = unlabeled_data
         self.index_unlabeled_data = index_unlabeled_data
 
-    def similarity_cosine(self, threshold: float = 0.5, similarity_measurement: str = 'cosine', n_instances: int=100):
+    def similarity_cosine(self, threshold: float = 0.5, similarity_measurement: str = 'cosine', n_instances: int = 100):
         assert threshold <= 1.0
         unlabeled_data = pd.DataFrame(self.unlabeled_data.copy())
         unlabeled_data['original_index'] = self.index_unlabeled_data
@@ -45,7 +45,7 @@ class Similarity():
 
         return result, results_index, similarity_score
 
-    def similarity_gower(self, threshold, n_instances):
+    def similarity_gower(self, threshold, n_instances, converted_columns):
 
         assert threshold <= 1.0
         unlabeled_data = pd.DataFrame(self.unlabeled_data.copy())
@@ -65,13 +65,14 @@ class Similarity():
                 if points.shape[0] >= 1:
                     points = np.append(points, data, axis=0)
 
-                    #https://medium.com/analytics-vidhya/gowers-distance-899f9c4bd553
-                    #The lower the value, the more similar it is. Therefore, 1 - gower makes it
+                    # https://medium.com/analytics-vidhya/gowers-distance-899f9c4bd553
+                    # The lower the value, the more similar it is. Therefore, 1 - gower makes it
                     # The lower the value the less similar it is.
-                    similarity = 1 - gower.gower_matrix(points[[-2, -1]])[1][0]
+                    similarity = 1 - gower.gower_matrix(points[[-2, -1]], cat_features=converted_columns)[1][0]
 
                     if similarity <= threshold:
-                        print(str(index) + "/" + str(unlabeled_data.shape[0]) + " - Formulation ID: " + str(formulation_id))
+                        print(str(index) + "/" + str(unlabeled_data.shape[0]) + " - Formulation ID: " + str(
+                            formulation_id))
                         similarity_points[formulation_id] = similarity
                     else:
                         points = np.delete(points, -1, 0)
@@ -91,5 +92,5 @@ class Similarity():
         results_index = result['original_index']
         similarity_scores = result['similarity_score']
         result.drop(columns=['original_index', 'similarity_score'], inplace=True)
-
+        result = result.to_numpy()
         return result, results_index, similarity_scores

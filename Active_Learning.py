@@ -21,12 +21,13 @@ import pandas as pd
 from sqlalchemy.orm.loading import instances
 
 import Similarity_Measure
+from BatchMode_Committee import batch_sampling
 from Cluster import KMeans_Cluster, HDBScan
 from CommitteeClass import CommitteeRegressor, CommitteeClassification
 from DataLoad import Data_Load_Split
 from DiversitySampling_Clustering import DiversitySampling
-from Models import SvmModel, RfModel, CBModel, SVR_Model, RandomForestEnsemble, CatBoostReg
-from PreProcess import MinMaxScaling
+from Models import SvmModel, RfModel, CBModel, SVR_Model, RandomForestEnsemble, CatBoostReg, SVRLinear
+from PreProcess import MinMaxScaling, Standardisation
 from QueriesCommittee import max_disagreement_sampling, max_std_sampling
 from SelectionFunctions import SelectionFunction
 from TrainModel import TrainModel
@@ -82,7 +83,7 @@ def unlabelled_data(file, method):
 
     ul_df = ul_df.groupby(level=0, axis=1, sort=False).sum()
 
-    #print(ul_df.isna().any())
+    # print(ul_df.isna().any())
     X_val = ul_df.to_numpy()
     columns_x_val = ul_df.columns
     return X_val, columns_x_val
@@ -155,15 +156,13 @@ class Algorithm(object):
         dirName = self.today_date_time
 
         try:
-            #Create Directory
+            # Create Directory
             save_folder = os.path.join(self.save_path, dirName)
             os.mkdir(save_folder)
             print("Directory ", dirName, " Created ")
             self.save_path = save_folder
         except FileExistsError:
             print("Directory ", dirName, " already exists")
-
-
 
     def create_data(self):
 
@@ -186,13 +185,14 @@ class Algorithm(object):
             elif self.n_instances in ['Half', 'half']:
                 self.n_instances = round(len(self.X_val) / 2)
 
-        #uncertain_count = math.ceil(len(self.X_val) * self.perc_uncertain)
+        # uncertain_count = math.ceil(len(self.X_val) * self.perc_uncertain)
 
         # Run Split
 
         data_load_split = Data_Load_Split("Results_Complete.csv", hide_component=self.hide, alg_categ=self.model_type,
                                           split_ratio=self.split_ratio,
                                           shuffle_data=True)
+        self.converted_columns = data_load_split.columns_converted
         self.target_labels = data_load_split.class_names_str
 
         self.X_train, self.X_test, self.y_train, self.y_test = data_load_split.split_train_test()
@@ -201,19 +201,20 @@ class Algorithm(object):
 
     def normalise_data(self):
         self.normaliser = MinMaxScaling()
-        self.normaliser.minmaxscale_fit(self.X_train, self.X_test, self.X_val)
-        self.X_train, self.X_val, self.X_test = self.normaliser.minmaxscale_trans(self.X_train, self.X_val, self.X_test)
+        self.normaliser.fit_scale(self.X_train, self.X_test, self.X_val, self.converted_columns)
+        self.X_train, self.X_val, self.X_test = self.normaliser.transform_scale(self.X_train, self.X_val, self.X_test, converted_columns=self.converted_columns)
         return self.X_train, self.X_val, self.X_test
 
-    def run_algorithm(self, splits: int = 5, grid_params = None):
+    def run_algorithm(self, splits: int = 5, grid_params=None, skip_unlabelled_analysis: bool = False, verbose: int = 0):
         if self.model_type == 'Regression':
-            self.regression_model(splits, grid_params)
+            self.regression_model(splits, grid_params, skip_unlabelled_analysis=skip_unlabelled_analysis, verbose=verbose)
             self.regression = 1
         elif self.model_type == 'Classification':
             self.classification_model(splits, grid_params)
             self.classification = 1
 
-    def regression_model(self, splits: int = 5, grid_params = None):
+    def regression_model(self, splits: int = 5, grid_params=None, skip_unlabelled_analysis: bool = False,
+                         verbose: int = 0):
         if type(self.model_object) is list:
             self.committee_models = CommitteeRegressor(self.model_object, self.X_train, self.X_test, self.y_train,
                                                        self.y_test, self.X_val,
@@ -222,14 +223,19 @@ class Algorithm(object):
                                                        scoring_type=self.scoring_type,
                                                        instances=self.n_instances,
                                                        query_strategy=max_std_sampling)
-            self.scores = self.committee_models.gridsearch_committee(grid_params=grid_params)
+            self.scores = self.committee_models.gridsearch_committee(grid_params=grid_params, verbose=verbose)
             self.committee_models.fit_data()
             self.score_data = self.committee_models.score()
-            self.selection_probas_val = self.committee_models.query(self.committee_models, n_instances=self.n_instances)
+            self.selection_probas_val, *rest = self.committee_models.query(self.committee_models,
+                                                                           n_instances=self.n_instances)
+            # test = batch_sampling(models=self.committee_models, X=self.X_val, X_labelled=self.X_train,
+            #                      converted_columns=self.converted_columns, query_type=max_std_sampling, n_jobs=-1,
+            #                      metric='gower')
             self.models_algorithms = self.committee_models.printname()
-            self.committee_models.lime_analysis(self.columns_x_val, save_path=self.save_path)
+            self.committee_models.lime_analysis(self.columns_x_val, save_path=self.save_path,
+                                                skip_unlabelled_analysis=skip_unlabelled_analysis)
 
-    def classification_model(self, splits: int = 5, grid_params = None):
+    def classification_model(self, splits: int = 5, grid_params=None):
         if type(self.model_object) is list:
             self.committee_models = CommitteeClassification(learner_list=self.model_object, X_training=self.X_train,
                                                             X_testing=self.X_test,
@@ -270,7 +276,8 @@ class Algorithm(object):
         elif method == 'gower':
             assert threshold <= 1.0
             self.samples, self.samples_index, self.sample_score = sim_init.similarity_gower(threshold,
-                                                                                            n_instances=n_instances)
+                                                                                            n_instances=n_instances,
+                                                                                            converted_columns=self.converted_columns)
         elif method == 'kmeans':
             self.kmeans_cluster_deopt = KMeans_Cluster(unlabeled_data=self.selection_probas_val)
 
@@ -293,7 +300,7 @@ class Algorithm(object):
         return self.samples, self.samples_index, self.sample_score
 
     def single_model(self):
-        #TODO Needs to be cleaned up and rectified
+        # TODO Needs to be cleaned up and rectified
         ### GridSearch/Fit Data - Single Algorithm ###
         self.model_test = TrainModel(self.model_object)
         self.optimised_classifier = self.model_test.optimise(self.X_train, self.y_train, 'balanced', splits=5,
@@ -321,8 +328,6 @@ class Algorithm(object):
                 self.selection_functions.uncertainty_sampling(self.optimised_classifier, X_val, instances,
                                                               randomize_tie_break)
 
-
-
     def output_data(self):
         # print(self.probas_val)
 
@@ -343,7 +348,8 @@ class Algorithm(object):
         #        index.append(data_x[1])
         #        data_info.append(data_x[2])
 
-        _, reversed_x_val, _ = self.normaliser.inverse_minmaxscale(self.X_train, self.samples, self.X_test)
+        _, reversed_x_val, _ = self.normaliser.inverse(self.X_train, self.samples, self.X_test,
+                                                       converted_columns=self.converted_columns)
 
         df = pd.DataFrame(reversed_x_val, columns=self.columns_x_val, index=self.samples_index)
         # add similarty scores:
@@ -371,22 +377,20 @@ class Algorithm(object):
         df_scores['average_score'] = df_scores[1:].sum(axis=1) / len(self.model_object)
 
         file_name = str(self.models_algorithms) + '_Ouput_Selection_' + str(self.select.__name__) + '_' + str(
-                self.today_date) + '.xlsx'
-        file_name = os.path.join(self.save_path,file_name)
+            self.today_date) + '.xlsx'
+        file_name = os.path.join(self.save_path, file_name)
 
         writer = pd.ExcelWriter(file_name
-            ,
-            engine='xlsxwriter')
+                                ,
+                                engine='xlsxwriter')
         df_info.to_excel(writer,
                          index=False, startrow=1)
         df_scores.to_excel(writer,
                            index=False, startcol=col_move)
 
-
         df.to_excel(
             writer,
             index=True, startrow=13)
-
 
         if self.classification == 1:
             if os.name == 'posix':
@@ -433,83 +437,84 @@ class Algorithm(object):
         os.rename(old_name, new_name)
 
 
-
-
-
-
-
-
-
-
-#models = [SvmModel, RfModel, CBModel]
-models = [SVR_Model, RandomForestEnsemble, CatBoostReg]
+# models = [SvmModel, RfModel, CBModel]
+models = [SVRLinear, RandomForestEnsemble, CatBoostReg]
 # selection_functions = [selection_functions]
 
 SvmModel = {'C': [0.01, 0.1],  # np.logspace(-5, 2, 8),
             'gamma': np.logspace(-5, 3, 9),
-                  # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
+            # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
             'kernel': ['rbf', 'poly', 'sigmoid', 'linear'],
             'coef0': [0, 0.001, 0.1, 1],
             'degree': [1, 2, 3, 4]}
 
-
 RfModel = {'n_estimators': [int(x) for x in np.linspace(start=200, stop=2000, num=10)],
-#                  'max_features': ['auto', 'sqrt'],
-#                  'max_depth': [int(x) for x in np.linspace(10, 35, num=11)]
-                  #,'min_samples_split': [2, 5, 10]
-                  #,'min_samples_leaf': [1, 2, 4]
-                  #,'bootstrap': [True, False]
+           #                  'max_features': ['auto', 'sqrt'],
+           #                  'max_depth': [int(x) for x in np.linspace(10, 35, num=11)]
+           # ,'min_samples_split': [2, 5, 10]
+           # ,'min_samples_leaf': [1, 2, 4]
+           # ,'bootstrap': [True, False]
            }
 
 CBModel = {
     'depth': [3, 1, 2, 6, 4, 5, 7, 8, 9, 10]
-#    , 'n_estimators': [250, 100, 500, 1000]
-#    , 'learning_rate': [0.03, 0.001, 0.01, 0.1, 0.2, 0.3]
-#    , 'l2_leaf_reg': [3, 1, 5, 10, 100],
-#    'border_count': [32, 5, 10, 20, 50, 100, 200]
+    #    , 'n_estimators': [250, 100, 500, 1000]
+    #    , 'learning_rate': [0.03, 0.001, 0.01, 0.1, 0.2, 0.3]
+    #    , 'l2_leaf_reg': [3, 1, 5, 10, 100],
+    #    'border_count': [32, 5, 10, 20, 50, 100, 200]
 }
-
-SVM_Reg = {'C': [0, 0.001,0.01, 0.1],  # np.logspace(-5, 2, 8),
-                  'gamma': np.logspace(-3, 1, 5),
-                  # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-                  'kernel': ['rbf',
-                             #'poly',
-                             'sigmoid',
-                             'linear']
-                  ,'coef0': [0, 0.001, 0.1, 1],
-                  #'degree': [1, 3, 4],
-                  'epsilon': [0.001,0.1, 0.2, 0.3, 0.5]
-                  }
+# https://www.vebuso.com/2020/03/svm-hyperparameter-tuning-using-gridsearchcv/
+SVM_Reg = {'C': [50, 100, 150, 200, 500, 1000, 5000, 10000],  # np.logspace(-6, 3,10), #*
+           'gamma': np.logspace(-4, 2, 7),  # Kernel coefficient for rbf, poly & sig
+           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
+           'kernel': [  # 'rbf',
+               # 'poly',
+               # 'sigmoid'
+               'linear'  # *
+           ]
+           # ,'coef0': [0.1, 1] #Independent term for poly & sig
+           # 'degree': [1, 3, 4], #Poly
+    , 'epsilon': [0.1, 0.2, 0.3, 0.5, 1, 5, 10, 50, 70]
+    , 'tol': np.logspace(-6, 1, 8)
+           }
 RFE_Reg = {'n_estimators': [int(x) for x in np.linspace(start=200,
-                                                               stop=1000,
-                                                               num=9)],
-                  # 'criterion': ['squared_error', 'absolute_error', 'poisson'],
-                  # 'max_features': ['auto', 'sqrt', 'log2'],
-                  # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-                  # 'max_depth': [int(x) for x in np.linspace(1, 110,num=12)],
-                  # 'bootstrap': [False, True],
-                  # 'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)]
-                  }
-CatBoost_Reg= {'learning_rate': [0.03, 0.1],
-                  'depth': [2, 3, 4, 6, 8]  # DEFAULT is 6. Decrease value to prevent overfitting
-    , 'l2_leaf_reg': [3, 5, 7, 9, 12, 13]  # Increase the value to prevent overfitting DEFAULT is 3
-                  }
+                                                        stop=1000,
+                                                        num=9)],
+           # 'criterion': ['squared_error', 'absolute_error', 'poisson'],
+           # 'max_features': ['auto', 'sqrt', 'log2'],
+           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
+           # 'max_depth': [int(x) for x in np.linspace(1, 110,num=12)],
+           # 'bootstrap': [False, True],
+           # 'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)]
+           }
+CatBoost_Reg = {'learning_rate': [0.03, 0.1],
+                'depth': [2, 3, 4, 6]  # DEFAULT is 6. Decrease value to prevent overfitting
+    , 'l2_leaf_reg': [3, 12, 13]  # Increase the value to prevent overfitting DEFAULT is 3
+                }
+
+SVRLinear = {'C': [50, 100, 150, 200, 500, 1000, 5000, 10000],
+             'tol':  np.logspace(-6, 1, 8),
+             'epsilon': [0.1, 0.2, 0.3, 0.5, 1, 5, 10, 50, 70],
+             'loss': ['epsilon_insensitive', 'squared_epsilon_insensitive'],
+             'fit_intercept': [True, False],
+             'max_iter': [1000, 10000]
+
+
+}
 grid_params = {}
-grid_params['SVC']= SvmModel
+grid_params['SVC'] = SvmModel
 grid_params['Random_Forest'] = RfModel
 grid_params['CatBoostClass'] = CBModel
 grid_params['SVR'] = SVM_Reg
 grid_params['RFE_Regressor'] = RFE_Reg
 grid_params['CatBoostReg'] = CatBoost_Reg
-
-
-
+grid_params['SVR_Linear'] = SVRLinear
 
 save_path = regression_output_path_1
 alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
-                scoring_type='r2', save_path=save_path)
+                scoring_type='r2', save_path=save_path, split_ratio=0.3)
 
-alg.run_algorithm(splits=5, grid_params=grid_params)
+alg.run_algorithm(splits=5, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=10)
 alg.compare_query_changes()
 alg.similairty_scoring(method='gower', threshold=0.25, n_instances=100)
 alg.output_data()
