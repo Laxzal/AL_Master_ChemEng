@@ -53,7 +53,8 @@ class Data_Load_Split(object):
     def __init__(self, file, hide_component: str = None, alg_categ: str = None, split_ratio: float = 0.2,
                  shuffle_data: bool = True, drop_useless_columns: bool = True):
 
-        assert alg_categ in ['Regression', 'Classification', 'Regression and Classification', 'Reg&Class']
+        assert alg_categ in ['Regression', 'Classification', 'Regression and Classification', 'Reg&Class',
+                             'MultiOutput Regression', 'MO Regression']
 
         self.file = file
         self.hide_component = hide_component
@@ -70,6 +71,8 @@ class Data_Load_Split(object):
                                           'PdI',
                                           'Z-Average (d.nm)',
                                           'Duplicate_Check']
+        self.multi_regression_table_drop = ['ES_Aggregation',
+                                            'Duplicate_Check']
 
         self.drop_columns_useless = ['Req_Weight_1', 'Ethanol_1',
                                      'Req_Weight_2', 'Ethanol_2',
@@ -130,6 +133,11 @@ class Data_Load_Split(object):
         elif self.alg_categ in {'Regression'}:
             self.datafile = self.datafile[self.datafile['Z-Average (d.nm)'].notna()].reset_index(drop=True)
 
+        elif self.alg_categ in {'MultiOutput Regression', 'MO Regression'}:
+            self.datafile = self.datafile[self.datafile['PdI Width (d.nm)',
+                                          'PdI',
+                                          'Z-Average (d.nm)'].notna()].reset_index(drop=True)
+
     def dummation_groupby(self) -> pd.DataFrame:
         self.dum = pd.get_dummies(self.datafile, columns=['Component_1', 'Component_2', 'Component_3'],
                                   prefix="", prefix_sep="")
@@ -172,6 +180,14 @@ class Data_Load_Split(object):
 
         elif self.alg_categ in {'Regression and Classification', 'Reg&Class'}:
             print('Needs to be implemented...')
+
+        elif self.alg_categ in {'MultiOutput Regression', 'MO Regression'}:
+            if self.dum is not None and self.train_table is not None:
+                self.train_table.drop(self.multi_regression_table_drop, axis=1, inplace=True)
+                self.dum.drop(self.multi_regression_table_drop, axis=1, inplace=True)
+            else:
+                self.dum.drop(self.multi_regression_table_drop, axis=1, inplace=True)
+                self.datafile.drop(self.multi_regression_table_drop, axis=1, inplace=True)
         else:
             print('What did you write that got you past the assertion check...')
 
@@ -183,13 +199,22 @@ class Data_Load_Split(object):
             elif self.alg_categ in {'Regression'}:
                 x_table = self.train_table.drop(['Z-Average (d.nm)'], axis=1).reset_index(drop=True)
 
+            elif self.alg_categ in {'MultiOutput Regression', 'MO Regression'}:
+                x_table = self.train_table.drop(['PdI Width (d.nm)', 'PdI','Z-Average (d.nm)'],
+                                                axis=1).reset_index(drop=True)
+
             self.X = x_table.values
+
 
         elif self.train_table is None:
             if self.alg_categ in {'Classification'}:
                 x_table = self.dum.drop(['ES_Aggregation_encoded', 'ES_Aggregation'], axis=1).reset_index(drop=True)
             elif self.alg_categ in {'Regression'}:
                 x_table = self.dum.drop(['Z-Average (d.nm)'], axis=1).reset_index(drop=True)
+
+            elif self.alg_categ in {'MultiOutput Regression', 'MO Regression'}:
+                x_table = self.dum.drop(['PdI Width (d.nm)', 'PdI','Z-Average (d.nm)'],
+                                                axis=1).reset_index(drop=True)
             self.X = x_table.values
 
         for i in x_table.columns:
@@ -211,19 +236,24 @@ class Data_Load_Split(object):
                 self.y = self.train_table['ES_Aggregation_encoded'].values
             elif self.alg_categ in {'Regression'}:
                 self.y = self.train_table['Z-Average (d.nm)'].values
+            elif self.alg_categ in {'MultiOutput Regression', 'MO Regression'}:
+                self.y = self.train_table['PdI Width (d.nm)', 'PdI','Z-Average (d.nm)'].values
+
 
         elif self.train_table is None:
             if self.alg_categ in {'Classification'}:
                 self.y = self.dum['ES_Aggregation_encoded'].values
             elif self.alg_categ in {'Regression'}:
                 self.y = self.dum['Z-Average (d.nm)'].values
+            elif self.alg_categ in {'MultiOutput Regression', 'MO Regression'}:
+                self.y = self.dum['PdI Width (d.nm)', 'PdI','Z-Average (d.nm)'].values
         return self.y
 
     def split_train_test(self):
 
         # TODO Need to look into the stratify parameter - if function again...
         (X_train, X_test, y_train, y_test) = \
-            train_test_split(self.X, self.y, test_size=self.split_ratio, random_state=42, shuffle=self.shuffle_data)
+            train_test_split(self.X, self.y, test_size=self.split_ratio, random_state=42, shuffle=self.shuffle_data, stratify=self.y)
 
         if self.hide is not None:
             if self.alg_categ in {'Classification'}:
@@ -237,6 +267,12 @@ class Data_Load_Split(object):
                 x_temp = x_temp.values
                 X_test = np.vstack([X_test, x_temp])
                 y_temp = self.hide['Z-Average (d.nm)'].values
+                y_test = np.hstack([y_test, y_temp])
+            elif self.alg_categ in {'MultiOutput Regression', 'MO Regression'}:
+                x_temp = self.hide.drop(['PdI Width (d.nm)', 'PdI','Z-Average (d.nm)'], axis=1).reset_index(drop=True)
+                x_temp = x_temp.values
+                X_test = np.vstack([X_test, x_temp])
+                y_temp = self.hide['PdI Width (d.nm)', 'PdI','Z-Average (d.nm)'].values
                 y_test = np.hstack([y_test, y_temp])
 
         return X_train, X_test, y_train, y_test
