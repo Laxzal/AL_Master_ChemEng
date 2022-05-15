@@ -247,187 +247,194 @@ class CommitteeClassification(ABC):
 
 class CommitteeRegressor(ABC):
 
-    def __init__(self, learner_list: List[BaseModel], X_training, X_testing, y_training, y_testing, X_unlabeled,
-                 query_strategy: Callable,
-                 splits: int = 5, kfold_shuffle: bool = True, scoring_type: str = 'r2', instances: int = 10):
+        def __init__(self, learner_list: List[BaseModel], X_training, X_testing, y_training, y_testing, X_unlabeled,
+                     query_strategy: Callable,
+                     splits: int = 5, kfold_shuffle: bool = True, scoring_type: str = 'r2', instances: int = 10):
 
-        self.score_parameters = {'r2': r2_score, 'explained_variance': explained_variance_score, 'max_error': max_error,
-                                 'neg_mean_absolute_error': mean_absolute_error,
-                                 'neg_mean_squared_error': mean_squared_error,
-                                 'neg_root_mean_squared_error': mean_squared_error,
-                                 'neg_mean_squared_log_error': mean_squared_log_error,
-                                 'neg_median_absolute_error': median_absolute_error,
-                                 'neg_mean_poisson_deviance': mean_poisson_deviance,
-                                 'neg_mean_gamma_deviance': mean_gamma_deviance,
-                                 'neg_mean_absolute_percentage_error': mean_absolute_percentage_error}
+            self.score_parameters = {'r2': r2_score, 'explained_variance': explained_variance_score, 'max_error': max_error,
+                                     'neg_mean_absolute_error': mean_absolute_error,
+                                     'neg_mean_squared_error': mean_squared_error,
+                                     'neg_root_mean_squared_error': mean_squared_error,
+                                     'neg_mean_squared_log_error': mean_squared_log_error,
+                                     'neg_median_absolute_error': median_absolute_error,
+                                     'neg_mean_poisson_deviance': mean_poisson_deviance,
+                                     'neg_mean_gamma_deviance': mean_gamma_deviance,
+                                     'neg_mean_absolute_percentage_error': mean_absolute_percentage_error}
 
-        assert scoring_type in list(self.score_parameters.keys())
+            assert scoring_type in list(self.score_parameters.keys())
 
-        self.classes_ = None
-        assert type(learner_list) == list
-        self.learner_list = [learner_class() for learner_class in learner_list]
-        self.X_training = X_training
-        self.X_testing = X_testing
-        self.y_training = y_training
-        self.y_testing = y_testing
-        self.X_unlabeled = X_unlabeled
-        self.scoring_type = scoring_type
-        self.splits = splits
-        self.kfold_shuffle = kfold_shuffle
-        self.instances = instances
-        self.query_strategy = query_strategy
-
-        self.score_query = self.score_parameters[self.scoring_type]
-
-    def __len__(self) -> int:
-        return len(self.learner_list)
-
-    def __iter__(self) -> Iterator:
-        for learner in self.learner_list:
-            yield learner
-
-    def printname(self):
-        classifier_models = []
-        for learner in self.learner_list:
-            classifier_models.append(str(learner.model_type))
-        return '_'.join(classifier_models)
-
-    def print_list(self):
-        for learner in self.learner_list:
-            print(learner)
-
-    def _set_classes(self):
-        """
-        Checks the known class labels by each learner, merges the labels and returns a mapping which maps the learner's
-        classes to the complete label list.
-        """
-        # assemble the list of known classes from each learner
-        try:
-            # if estimators are fitted
-
-            known_classes = tuple(learner.optimised_model.classes_ for learner in self.learner_list)
-        except AttributeError:
-            # handle unfitted estimators
             self.classes_ = None
-            self.n_classes_ = 0
-            return
+            assert type(learner_list) == list
+            self.learner_list = [learner_class() for learner_class in learner_list]
+            self.X_training = X_training
+            self.X_testing = X_testing
+            self.y_training = y_training
+            self.y_testing = y_testing
+            self.X_unlabeled = X_unlabeled
+            self.scoring_type = scoring_type
+            self.splits = splits
+            self.kfold_shuffle = kfold_shuffle
+            self.instances = instances
+            self.query_strategy = query_strategy
 
-        self.classes_ = np.unique(
-            np.concatenate(known_classes, axis=0),
-            axis=0
-        )
-        self.n_classes_ = len(self.classes_)
+            self.score_query = self.score_parameters[self.scoring_type]
 
-    def check_class_labels(self, *args: BaseEstimator):
+        def __len__(self) -> int:
+            return len(self.learner_list)
 
-        try:
-            classes_ = [estimator.classes_ for estimator in args]
-        except AttributeError:
-            raise NotFittedError('Not all estimators are fitted. Fit all estimators before using this method')
+        def __iter__(self) -> Iterator:
+            for learner in self.learner_list:
+                yield learner
 
-    def gridsearch_committee(self, grid_params: dict = None, verbose: int = 0):
-        score_values = {}
-        for learner_idx, learner in enumerate(self.learner_list):
-            score_values[learner.model_type] = learner.gridsearch(X_train=self.X_training, y_train=self.y_training,
-                                                                  splits=self.splits,
-                                                                  kfold_shuffle=self.kfold_shuffle,
-                                                                  scoring_type=self.scoring_type,
-                                                                  params=grid_params[str(learner.model_type)],
-                                                                  verbose=verbose)
+        def printname(self):
+            classifier_models = []
+            for learner in self.learner_list:
+                classifier_models.append(str(learner.model_type))
+            return '_'.join(classifier_models)
 
-        return score_values
+        def print_list(self):
+            for learner in self.learner_list:
+                print(learner)
 
-    def fit_data(self, **fit_kwargs):
+        def _set_classes(self):
+            """
+            Checks the known class labels by each learner, merges the labels and returns a mapping which maps the learner's
+            classes to the complete label list.
+            """
+            # assemble the list of known classes from each learner
+            try:
+                # if estimators are fitted
 
-        for learner in self.learner_list:
-            learner.fit(self.X_training, self.y_training, **fit_kwargs)
-        self._set_classes()
-        return self
+                known_classes = tuple(learner.optimised_model.classes_ for learner in self.learner_list)
+            except AttributeError:
+                # handle unfitted estimators
+                self.classes_ = None
+                self.n_classes_ = 0
+                return
 
-    def predict(self, X, return_std: bool = False, **predict_kwargs):
+            self.classes_ = np.unique(
+                np.concatenate(known_classes, axis=0),
+                axis=0
+            )
+            self.n_classes_ = len(self.classes_)
 
-        vote = self.vote(X, **predict_kwargs)
-        if not return_std:
-            return np.mean(vote, axis=1)
-        else:
-            return np.mean(vote, axis=1), np.std(vote, axis=1)
+        def check_class_labels(self, *args: BaseEstimator):
 
-    def vote(self, X, **predict_kwargs):
+            try:
+                classes_ = [estimator.classes_ for estimator in args]
+            except AttributeError:
+                raise NotFittedError('Not all estimators are fitted. Fit all estimators before using this method')
 
-        prediction = np.zeros(shape=(len(X), len(self.learner_list)))
+        def gridsearch_committee(self, grid_params: dict = None, verbose: int = 0):
+            score_values = {}
+            for learner_idx, learner in enumerate(self.learner_list):
+                score_values[learner.model_type] = learner.gridsearch(X_train=self.X_training, y_train=self.y_training,
+                                                                      splits=self.splits,
+                                                                      kfold_shuffle=self.kfold_shuffle,
+                                                                      scoring_type=self.scoring_type,
+                                                                      params=grid_params[str(learner.model_type)],
+                                                                      verbose=verbose)
 
-        for learner_idx, learner in enumerate(self.learner_list):
-            prediction[:, learner_idx] = learner.predict(X, **predict_kwargs).reshape(-1, )
+            return score_values
 
-        return prediction
+        def fit_data(self, **fit_kwargs):
 
-    def query(self, committee: BaseModel, *query_args, **query_kwargs):
+            for learner in self.learner_list:
+                learner.fit(self.X_training, self.y_training, **fit_kwargs)
+            self._set_classes()
+            return self
 
-        query_result, query_score = self.query_strategy(committee, self.X_unlabeled, *query_args, **query_kwargs)
-        query_result = tuple((query_result, retrieverows(self.X_unlabeled, query_result)))
-        return query_result, query_score
+        def predict(self, X, return_std: bool = False, **predict_kwargs):
 
-    def score(self, **predict_kwargs):
+            vote = self.vote(X, **predict_kwargs)
+            if not return_std:
+                return np.mean(vote, axis=1)
+            else:
+                return np.mean(vote, axis=1), np.std(vote, axis=1)
 
-        train_vote = self.vote(self.X_training, **predict_kwargs)
-        test_vote = self.vote(self.X_testing, **predict_kwargs)
-        scores = {}
+        def vote(self, X, **predict_kwargs):
 
-        for learner_idx, learner in enumerate(self.learner_list):
-            train_strat = self.score_query(self.y_training, train_vote[:, learner_idx])
-            print("X training data scoring")
-            print("Model: ", learner.model_type)
-            print("Scoring Strategy: ", str(self.scoring_type))
-            print("Score: ", train_strat)
-            scores[str(learner.model_type) + '_train'] = np.array([str(self.scoring_type), train_strat])
-        for learner_idx, learner in enumerate(self.learner_list):
-            test_strat = self.score_query(self.y_testing, test_vote[:, learner_idx])
-            print("X testing data scoring")
-            print("Model: ", learner.model_type)
-            print("Scoring Strategy: ", str(self.scoring_type))
-            print("Score: ", test_strat)
-            scores[str(learner.model_type) + '_test'] = np.array([str(self.scoring_type), test_strat])
+            prediction = np.zeros(shape=(len(X), len(self.learner_list)))
 
-        return scores
+            for learner_idx, learner in enumerate(self.learner_list):
+                prediction[:, learner_idx] = learner.predict(X, **predict_kwargs).reshape(-1, )
 
-    def lime_analysis(self, feature_names, save_path: Optional[str], skip_unlabelled_analysis: bool=False):
-        # feat_names: str = None, target_names: str = None
-        # explainer = lime.lime_tabular.LimeTabularExplainer(self.X_training, feature_names=feat_names,
-        # class_names=target_names,
-        # discretize_continuous=True)
-        # Explaining the instances
+            return prediction
 
-        # i = np.random.randint(0, self.X_testing.shape[0])
-        # for learner_idx, learner in enumerate(self.learner_list):
-        #    exp = explainer.explain_instance(self.X_testing[i], learner.test_y_predicted, num_features=len(feat_names))
-        #    exp.sh
-        for learner_idx, learner in enumerate(self.learner_list):
-            # if learner.model_type == ['Random_Forest', 'CatBoost_Class']:
-            # xpl = SmartExplainer(model=learner.optimised_model)
-            # xpl.compile(x=self.X_testing)
-            # app = xpl.run_app(title_story='Test')
-            # https://towardsdatascience.com/explain-any-models-with-the-shap-values-use-the-kernelexplainer-79de9464897a
-            X_train_means = shap.kmeans(self.X_training, 9)
-            ex = shap.KernelExplainer(learner.predict, X_train_means)
-            ex.shap_values(self.X_training[0, :], nsamples=1000)
-            shap_values = ex.shap_values(self.X_testing[0, :])
-            f = shap.force_plot(ex.expected_value, shap_values, self.X_testing[0, :], feature_names=feature_names)
-            html_name = str(learner.model_type) + "_single_prediction_test_test_Regression.html"
-            html_name = os.path.join(save_path, html_name)
-            shap.save_html(html_name, f)
+        def query(self, committee: BaseModel, *query_args, **query_kwargs):
 
-            shap_values = ex.shap_values(self.X_testing)
-            fig = plt.gcf()
-            shap.summary_plot(shap_values, self.X_testing, feature_names=feature_names)
-            fig_summary = str(learner.model_type) + "_all_predictions_test_Regression.jpg"
-            fig_summary = os.path.join(save_path, fig_summary)
-            fig.savefig(fig_summary, bbox_inches='tight')
-            if skip_unlabelled_analysis == False:
-                if learner.model_type in ['RFE_Regressor', 'CatBoostReg']:
-                    explainer = shap.KernelExplainer(learner.predict, self.X_training) #I changed this from Tree Explainer(learner.optimised_model) to KernelExplainer to do nsamples
-                    shap_values = explainer.shap_values(self.X_unlabeled[0:1000, :], nsamples=1000)
-                    fig = plt.gcf()
-                    shap.summary_plot(shap_values, self.X_unlabeled[0:1000, :], feature_names=feature_names)
-                    fig_summary = str(learner.model_type) + "_all_predictions_unlabelled_regression.jpg"
-                    fig_summary = os.path.join(save_path, fig_summary)
-                    fig.savefig(fig_summary, bbox_inches='tight')
+            query_result, query_score = self.query_strategy(committee, self.X_unlabeled, *query_args, **query_kwargs)
+            query_result = tuple((query_result, retrieverows(self.X_unlabeled, query_result)))
+            return query_result, query_score
+
+        def score(self, **predict_kwargs):
+
+            train_vote = self.vote(self.X_training, **predict_kwargs)
+            test_vote = self.vote(self.X_testing, **predict_kwargs)
+            scores = {}
+
+            for learner_idx, learner in enumerate(self.learner_list):
+                train_strat = self.score_query(self.y_training, train_vote[:, learner_idx])
+                print("X training data scoring")
+                print("Model: ", learner.model_type)
+                print("Scoring Strategy: ", str(self.scoring_type))
+                print("Score: ", train_strat)
+                scores[str(learner.model_type) + '_train'] = np.array([str(self.scoring_type), train_strat])
+            for learner_idx, learner in enumerate(self.learner_list):
+                test_strat = self.score_query(self.y_testing, test_vote[:, learner_idx])
+                print("X testing data scoring")
+                print("Model: ", learner.model_type)
+                print("Scoring Strategy: ", str(self.scoring_type))
+                print("Score: ", test_strat)
+                scores[str(learner.model_type) + '_test'] = np.array([str(self.scoring_type), test_strat])
+
+            return scores
+
+        def predictionvsactual(self, save_path, plot):
+            for learner_idx, learner in enumerate(self.learner_list):
+                if learner.train_y_predicted is None:
+                    learner.predict_labelled(self.X_training, self.X_testing)
+                learner.predict_actual_graph(y_actual_train=self.y_training, y_actual_test=self.y_testing, score_query=self.score_query, save_path=save_path, plot=plot)
+
+
+        def lime_analysis(self, feature_names, save_path: Optional[str], skip_unlabelled_analysis: bool=False):
+            # feat_names: str = None, target_names: str = None
+            # explainer = lime.lime_tabular.LimeTabularExplainer(self.X_training, feature_names=feat_names,
+            # class_names=target_names,
+            # discretize_continuous=True)
+            # Explaining the instances
+
+            # i = np.random.randint(0, self.X_testing.shape[0])
+            # for learner_idx, learner in enumerate(self.learner_list):
+            #    exp = explainer.explain_instance(self.X_testing[i], learner.test_y_predicted, num_features=len(feat_names))
+            #    exp.sh
+            for learner_idx, learner in enumerate(self.learner_list):
+                # if learner.model_type == ['Random_Forest', 'CatBoost_Class']:
+                # xpl = SmartExplainer(model=learner.optimised_model)
+                # xpl.compile(x=self.X_testing)
+                # app = xpl.run_app(title_story='Test')
+                # https://towardsdatascience.com/explain-any-models-with-the-shap-values-use-the-kernelexplainer-79de9464897a
+                X_train_means = shap.kmeans(self.X_training, 9)
+                ex = shap.KernelExplainer(learner.predict, X_train_means)
+                ex.shap_values(self.X_training[0, :], nsamples=1000)
+                shap_values = ex.shap_values(self.X_testing[0, :])
+                f = shap.force_plot(ex.expected_value, shap_values, self.X_testing[0, :], feature_names=feature_names)
+                html_name = str(learner.model_type) + "_single_prediction_test_test_Regression.html"
+                html_name = os.path.join(save_path, html_name)
+                shap.save_html(html_name, f)
+
+                shap_values = ex.shap_values(self.X_testing)
+                fig = plt.gcf()
+                shap.summary_plot(shap_values, self.X_testing, feature_names=feature_names)
+                fig_summary = str(learner.model_type) + "_all_predictions_test_Regression.jpg"
+                fig_summary = os.path.join(save_path, fig_summary)
+                fig.savefig(fig_summary, bbox_inches='tight')
+                if skip_unlabelled_analysis == False:
+                    if learner.model_type in ['RFE_Regressor', 'CatBoostReg']:
+                        explainer = shap.KernelExplainer(learner.predict, self.X_training) #I changed this from Tree Explainer(learner.optimised_model) to KernelExplainer to do nsamples
+                        shap_values = explainer.shap_values(self.X_unlabeled[0:1000, :], nsamples=1000)
+                        fig = plt.gcf()
+                        shap.summary_plot(shap_values, self.X_unlabeled[0:1000, :], feature_names=feature_names)
+                        fig_summary = str(learner.model_type) + "_all_predictions_unlabelled_regression.jpg"
+                        fig_summary = os.path.join(save_path, fig_summary)
+                        fig.savefig(fig_summary, bbox_inches='tight')

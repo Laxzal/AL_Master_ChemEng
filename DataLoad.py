@@ -252,8 +252,12 @@ class Data_Load_Split(object):
     def split_train_test(self):
 
         # TODO Need to look into the stratify parameter - if function again...
-        (X_train, X_test, y_train, y_test) = \
-            train_test_split(self.X, self.y, test_size=self.split_ratio, random_state=42, shuffle=self.shuffle_data, stratify=self.y)
+        if self.alg_categ in {'Classification'}:
+            (X_train, X_test, y_train, y_test) = \
+                train_test_split(self.X, self.y, test_size=self.split_ratio, random_state=42, shuffle=self.shuffle_data, stratify=self.y)
+        else:
+            (X_train, X_test, y_train, y_test) = \
+                train_test_split(self.X, self.y, test_size=self.split_ratio, random_state=42, shuffle=self.shuffle_data)
 
         if self.hide is not None:
             if self.alg_categ in {'Classification'}:

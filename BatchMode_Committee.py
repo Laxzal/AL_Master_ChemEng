@@ -55,6 +55,8 @@ def select_instance(X_training, X_pool, converted_columns, X_uncertainty: np.nda
 
     alpha = n_unlabeled / (n_unlabeled + n_labeled_records)
 
+
+
     if metric in ['gower']:
         distance_scores = gower.gower_matrix(X_pool_masked.reshape(n_unlabeled, -1),
                                              X_training.reshape(n_labeled_records, -1),

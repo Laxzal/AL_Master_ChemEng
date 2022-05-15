@@ -1,7 +1,9 @@
+import os
 import sys
 from typing import Optional
 
 import numpy as np
+from matplotlib import pyplot as plt
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import confusion_matrix, precision_score
 from sklearn.model_selection import StratifiedKFold, GridSearchCV, KFold
@@ -321,6 +323,55 @@ class SVR_Model(BaseModel):
         self.proba = self.optimised_model.predict_proba(X_val)
         return self.proba
 
+    def predict_actual_graph(self, y_actual_train, y_actual_test, score_query, save_path: Optional[str], plot: bool=False):
+
+        score_train = score_query(y_actual_train, self.train_y_predicted)
+        score_test = score_query(y_actual_test, self.test_y_predicted)
+        plt.figure(figsize=(10, 10))
+        plt.scatter(y_actual_train, self.train_y_predicted, c='crimson')
+        plt.yscale('log')
+        plt.xscale('log')
+
+        p1 = max(max(self.train_y_predicted), max(y_actual_train))
+        p2 = min(min(self.train_y_predicted), min(y_actual_train))
+        plt.plot([p1, p2], [p1, p2], 'b-')
+        plt.xlabel('True Values', fontsize=15)
+        plt.ylabel('Predictions', fontsize=15)
+        plt.title(str(SVR_Model.model_type) + ': ' + str(score_train))
+        plt.axis('equal')
+
+        if plot == True:
+            plt.show()
+        elif plot == False:
+            plot_name = str(SVR_Model.model_type) + '_actual_vs_prediction_train.jpg'
+            plot_name = os.path.join(save_path, plot_name)
+            plt.tight_layout()
+            plt.savefig(plot_name, dpi = 400)
+        print(plt.get_backend())
+
+        # close any existing plots
+        plt.close("all")
+        plt.figure(figsize=(10, 10))
+        plt.scatter(y_actual_test, self.test_y_predicted, c='crimson')
+        plt.yscale('log')
+        plt.xscale('log')
+
+        p1 = max(max(self.test_y_predicted), max(y_actual_test))
+        p2 = min(min(self.test_y_predicted), min(y_actual_test))
+        plt.plot([p1, p2], [p1, p2], 'b-')
+        plt.xlabel('True Values', fontsize=15)
+        plt.ylabel('Predictions', fontsize=15)
+        plt.title(str(SVR_Model.model_type) + ': ' + str(score_test))
+        plt.axis('equal')
+
+        if plot == True:
+            plt.show()
+        elif plot == False:
+            plot_name = str(SVR_Model.model_type) + '_actual_vs_prediction_test.jpg'
+            plot_name = os.path.join(save_path, plot_name)
+            plt.tight_layout()
+            plt.savefig(plot_name, dpi=400)
+
 
 class RandomForestEnsemble(BaseModel):
     model_type = 'RFE_Regressor'
@@ -381,6 +432,55 @@ class RandomForestEnsemble(BaseModel):
         self.test_y_predicted = self.optimised_model.predict(X_test)
 
         return self.train_y_predicted, self.test_y_predicted
+
+    def predict_actual_graph(self, y_actual_train, y_actual_test, score_query, save_path: Optional[str], plot: bool=False):
+
+        score_train = score_query(y_actual_train, self.train_y_predicted)
+        score_test = score_query(y_actual_test, self.test_y_predicted)
+        plt.figure(figsize=(10, 10))
+        plt.scatter(y_actual_train, self.train_y_predicted, c='crimson')
+        plt.yscale('log')
+        plt.xscale('log')
+
+        p1 = max(max(self.train_y_predicted), max(y_actual_train))
+        p2 = min(min(self.train_y_predicted), min(y_actual_train))
+        plt.plot([p1, p2], [p1, p2], 'b-')
+        plt.xlabel('True Values', fontsize=15)
+        plt.ylabel('Predictions', fontsize=15)
+        plt.title(str(RandomForestEnsemble.model_type) + ': ' + str(score_train))
+        plt.axis('equal')
+
+        if plot == True:
+            plt.show()
+        elif plot == False:
+            plot_name = str(RandomForestEnsemble.model_type) + '_actual_vs_prediction_train.jpg'
+            plot_name = os.path.join(save_path, plot_name)
+            plt.tight_layout()
+            plt.savefig(plot_name, dpi = 400)
+        print(plt.get_backend())
+
+        # close any existing plots
+        plt.close("all")
+        plt.figure(figsize=(10, 10))
+        plt.scatter(y_actual_test, self.test_y_predicted, c='crimson')
+        plt.yscale('log')
+        plt.xscale('log')
+
+        p1 = max(max(self.test_y_predicted), max(y_actual_test))
+        p2 = min(min(self.test_y_predicted), min(y_actual_test))
+        plt.plot([p1, p2], [p1, p2], 'b-')
+        plt.xlabel('True Values', fontsize=15)
+        plt.ylabel('Predictions', fontsize=15)
+        plt.title(str(RandomForestEnsemble.model_type) + ': ' + str(score_test))
+        plt.axis('equal')
+
+        if plot == True:
+            plt.show()
+        elif plot == False:
+            plot_name = str(RandomForestEnsemble.model_type) + '_actual_vs_prediction_test.jpg'
+            plot_name = os.path.join(save_path, plot_name)
+            plt.tight_layout()
+            plt.savefig(plot_name, dpi=400)
 
 
 class CatBoostReg(BaseModel):
@@ -453,6 +553,55 @@ class CatBoostReg(BaseModel):
 
         return self.train_y_predicted, self.test_y_predicted
 
+    def predict_actual_graph(self, y_actual_train, y_actual_test, score_query, save_path: Optional[str], plot: bool=False):
+
+        score_train = score_query(y_actual_train, self.train_y_predicted)
+        score_test = score_query(y_actual_test, self.test_y_predicted)
+        plt.figure(figsize=(10, 10))
+        plt.scatter(y_actual_train, self.train_y_predicted, c='crimson')
+        plt.yscale('log')
+        plt.xscale('log')
+
+        p1 = max(max(self.train_y_predicted), max(y_actual_train))
+        p2 = min(min(self.train_y_predicted), min(y_actual_train))
+        plt.plot([p1, p2], [p1, p2], 'b-')
+        plt.xlabel('True Values', fontsize=15)
+        plt.ylabel('Predictions', fontsize=15)
+        plt.title(str(CatBoostReg.model_type) + ': ' + str(score_train))
+        plt.axis('equal')
+
+        if plot == True:
+            plt.show()
+        elif plot == False:
+            plot_name = str(CatBoostReg.model_type) + '_actual_vs_prediction_train.jpg'
+            plot_name = os.path.join(save_path, plot_name)
+            plt.tight_layout()
+            plt.savefig(plot_name, dpi = 400)
+        print(plt.get_backend())
+
+        # close any existing plots
+        plt.close("all")
+        plt.figure(figsize=(10, 10))
+        plt.scatter(y_actual_test, self.test_y_predicted, c='crimson')
+        plt.yscale('log')
+        plt.xscale('log')
+
+        p1 = max(max(self.test_y_predicted), max(y_actual_test))
+        p2 = min(min(self.test_y_predicted), min(y_actual_test))
+        plt.plot([p1, p2], [p1, p2], 'b-')
+        plt.xlabel('True Values', fontsize=15)
+        plt.ylabel('Predictions', fontsize=15)
+        plt.title(str(CatBoostReg.model_type) + ': ' + str(score_test))
+        plt.axis('equal')
+
+        if plot == True:
+            plt.show()
+        elif plot == False:
+            plot_name = str(CatBoostReg.model_type) + '_actual_vs_prediction_test.jpg'
+            plot_name = os.path.join(save_path, plot_name)
+            plt.tight_layout()
+            plt.savefig(plot_name, dpi=400)
+
 class SVRLinear(BaseModel):
 
     model_type = 'SVR_Linear'
@@ -511,7 +660,54 @@ class SVRLinear(BaseModel):
         print('Proba prediction...')
         self.proba = self.optimised_model.predict_proba(X_val)
         return self.proba
+    def predict_actual_graph(self, y_actual_train, y_actual_test, score_query, save_path: Optional[str], plot: bool=False):
 
+        score_train = score_query(y_actual_train, self.train_y_predicted)
+        score_test = score_query(y_actual_test, self.test_y_predicted)
+        plt.figure(figsize=(10, 10))
+        plt.scatter(y_actual_train, self.train_y_predicted, c='crimson')
+        plt.yscale('log')
+        plt.xscale('log')
+
+        p1 = max(max(self.train_y_predicted), max(y_actual_train))
+        p2 = min(min(self.train_y_predicted), min(y_actual_train))
+        plt.plot([p1, p2], [p1, p2], 'b-')
+        plt.xlabel('True Values', fontsize=15)
+        plt.ylabel('Predictions', fontsize=15)
+        plt.title(str(SVRLinear.model_type) + ': ' + str(score_train))
+        plt.axis('equal')
+
+        if plot == True:
+            plt.show()
+        elif plot == False:
+            plot_name = str(SVRLinear.model_type) + '_actual_vs_prediction_train.jpg'
+            plot_name = os.path.join(save_path, plot_name)
+            plt.tight_layout()
+            plt.savefig(plot_name, dpi = 400)
+        print(plt.get_backend())
+
+        # close any existing plots
+        plt.close("all")
+        plt.figure(figsize=(10, 10))
+        plt.scatter(y_actual_test, self.test_y_predicted, c='crimson')
+        plt.yscale('log')
+        plt.xscale('log')
+
+        p1 = max(max(self.test_y_predicted), max(y_actual_test))
+        p2 = min(min(self.test_y_predicted), min(y_actual_test))
+        plt.plot([p1, p2], [p1, p2], 'b-')
+        plt.xlabel('True Values', fontsize=15)
+        plt.ylabel('Predictions', fontsize=15)
+        plt.title(str(SVRLinear.model_type) + ': ' + str(score_test))
+        plt.axis('equal')
+
+        if plot == True:
+            plt.show()
+        elif plot == False:
+            plot_name = str(SVRLinear.model_type) + '_actual_vs_prediction_test.jpg'
+            plot_name = os.path.join(save_path, plot_name)
+            plt.tight_layout()
+            plt.savefig(plot_name, dpi=400)
 
 
 class Multi_SVR(BaseModel):
@@ -572,3 +768,52 @@ class Multi_SVR(BaseModel):
         print('Proba prediction...')
         self.proba = self.optimised_model.predict_proba(X_val)
         return self.proba
+
+    def predict_actual_graph(self, y_actual_train, y_actual_test, score_query, save_path: Optional[str], plot: bool=False):
+
+        score_train = score_query(y_actual_train, self.train_y_predicted)
+        score_test = score_query(y_actual_test, self.test_y_predicted)
+        plt.figure(figsize=(10, 10))
+        plt.scatter(y_actual_train, self.train_y_predicted, c='crimson')
+        plt.yscale('log')
+        plt.xscale('log')
+
+        p1 = max(max(self.train_y_predicted), max(y_actual_train))
+        p2 = min(min(self.train_y_predicted), min(y_actual_train))
+        plt.plot([p1, p2], [p1, p2], 'b-')
+        plt.xlabel('True Values', fontsize=15)
+        plt.ylabel('Predictions', fontsize=15)
+        plt.title(str(RandomForestEnsemble.model_type) + ': ' + str(score_train))
+        plt.axis('equal')
+
+        if plot == True:
+            plt.show()
+        elif plot == False:
+            plot_name = str(SVRLinear.model_type) + '_actual_vs_prediction_train.jpg'
+            plot_name = os.path.join(save_path, plot_name)
+            plt.tight_layout()
+            plt.savefig(plot_name, dpi = 400)
+        print(plt.get_backend())
+
+        # close any existing plots
+        plt.close("all")
+        plt.figure(figsize=(10, 10))
+        plt.scatter(y_actual_test, self.test_y_predicted, c='crimson')
+        plt.yscale('log')
+        plt.xscale('log')
+
+        p1 = max(max(self.test_y_predicted), max(y_actual_test))
+        p2 = min(min(self.test_y_predicted), min(y_actual_test))
+        plt.plot([p1, p2], [p1, p2], 'b-')
+        plt.xlabel('True Values', fontsize=15)
+        plt.ylabel('Predictions', fontsize=15)
+        plt.title(str(RandomForestEnsemble.model_type) + ': ' + str(score_test))
+        plt.axis('equal')
+
+        if plot == True:
+            plt.show()
+        elif plot == False:
+            plot_name = str(SVRLinear.model_type) + '_actual_vs_prediction_test.jpg'
+            plot_name = os.path.join(save_path, plot_name)
+            plt.tight_layout()
+            plt.savefig(plot_name, dpi=400)

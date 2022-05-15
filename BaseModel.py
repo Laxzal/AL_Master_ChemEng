@@ -27,6 +27,9 @@ class BaseModel(object):
     def precision_score_model(self):
         pass
 
+    def predict_actual_graph(self):
+        pass
+
 
 class BaseSelectionFunction(object):
 

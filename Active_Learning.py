@@ -19,7 +19,7 @@ from typing import Callable, Union, Optional
 import numpy as np
 import pandas as pd
 from sqlalchemy.orm.loading import instances
-
+from Data_Analysis import Data_Analyse
 import Similarity_Measure
 from BatchMode_Committee import batch_sampling
 from Cluster import KMeans_Cluster, HDBScan
@@ -205,6 +205,50 @@ class Algorithm(object):
         self.X_train, self.X_val, self.X_test = self.normaliser.transform_scale(self.X_train, self.X_val, self.X_test, converted_columns=self.converted_columns)
         return self.X_train, self.X_val, self.X_test
 
+    def analyse_data(self):
+        data_analyse = Data_Analyse()
+
+        data_analyse.histogram(self.y_train,data_name='y_train', save_path=self.save_path,plot=False)
+        data_analyse.histogram(self.y_test,data_name='y_test', save_path=self.save_path,plot=False)
+
+        data_analyse.qqplot_data(self.y_train,data_name='y_train',save_path=self.save_path ,plot=False)
+        data_analyse.qqplot_data(self.y_test,data_name='y_test',save_path=self.save_path ,plot=False)
+
+        print('Shapiro Wilk Y Train')
+        self.shapiro_wilk_y_train = data_analyse.shapiro_wilk_test(self.y_train)
+
+        print(self.shapiro_wilk_y_train)
+        print('Shapiro Wilk Y Test')
+        self.shapiro_wilk_y_test = data_analyse.shapiro_wilk_test(self.y_test)
+
+        print(self.shapiro_wilk_y_test)
+
+        print('Dagostino K^2 Y Train')
+        self.dagostino_k2_y_train, self.dagostino_p_y_train = data_analyse.dagostino_k2(self.y_train)
+        print('Dagostino K^2 Y Test')
+        self.dagostino_k2_y_test , self.dagostino_p_y_test = data_analyse.dagostino_k2(self.y_test)
+
+
+        print('Anderson Y Train')
+        self.anderson_darling_train = data_analyse.anderson_darling(self.y_train)
+        print('Anderson Y Test')
+        self.anderson_darling_test = data_analyse.anderson_darling(self.y_test)
+
+        print('Heatmap X Train')
+        self.heatmap_train = data_analyse.heatmap(self.X_train, self.columns_x_val,data_name='x_train',save_path=self.save_path ,plot=False)
+
+        print('Box Plot X Train')
+        self.box_plot_train = data_analyse.box_plot(self.X_train, self.columns_x_val,data_name='x_train',save_path=self.save_path ,plot=False)
+
+        print('Variance Inflation Factor_X_train')
+        self.variance_inflation_factor_x_train = data_analyse.variance_inflation_factor(self.X_train,self.columns_x_val)
+        print(self.variance_inflation_factor_x_train)
+
+        return
+
+
+
+
     def run_algorithm(self, splits: int = 5, grid_params=None, skip_unlabelled_analysis: bool = False, verbose: int = 0):
         if self.model_type == 'Regression':
             self.regression_model(splits, grid_params, skip_unlabelled_analysis=skip_unlabelled_analysis, verbose=verbose)
@@ -231,6 +275,7 @@ class Algorithm(object):
             # test = batch_sampling(models=self.committee_models, X=self.X_val, X_labelled=self.X_train,
             #                      converted_columns=self.converted_columns, query_type=max_std_sampling, n_jobs=-1,
             #                      metric='gower')
+            self.committee_models.predictionvsactual(save_path=self.save_path, plot=False)
             self.models_algorithms = self.committee_models.printname()
             self.committee_models.lime_analysis(self.columns_x_val, save_path=self.save_path,
                                                 skip_unlabelled_analysis=skip_unlabelled_analysis)
@@ -514,6 +559,7 @@ save_path = regression_output_path_1
 alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
                 scoring_type='r2', save_path=save_path, split_ratio=0.3)
 
+alg.analyse_data()
 alg.run_algorithm(splits=5, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=10)
 alg.compare_query_changes()
 alg.similairty_scoring(method='gower', threshold=0.25, n_instances=100)
