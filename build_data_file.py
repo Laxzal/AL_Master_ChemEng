@@ -397,13 +397,13 @@ class DataBuild:
         print('Columns: ', self.master_formulation_results_df.columns)
         self.master_formulation_results_df['Component_2'].replace('Vitamin D', 'Vitamin D3', inplace=True)
         self.master_formulation_results_df['Component_3'].replace('Vitamin D', 'Vitamin D3', inplace=True)
-
+        self.master_formulation_results_df['Component_4'].replace('PEG-2000', 'PEG2000 DSPE', inplace=True)
     def pubchem_data(self):
 
         component_pubchem_df = pd.DataFrame(
-            columns=['compound', 'cid', 'mw', 'xlogp', 'complexity', 'heavy_atom_count', 'tpsa', 'ssr', 'single_bond',
+            columns=['compound', 'cid', 'mw', 'h_bond_donor_count','h_bond_acceptor_count', 'xlogp', 'complexity', 'heavy_atom_count', 'tpsa', 'ssr', 'single_bond',
                      'double_bond', 'aromatic_bond'])
-        self.master_components = self.master_formulation_results_df[['Component_1', 'Component_2', 'Component_3']]
+        self.master_components = self.master_formulation_results_df[['Component_1', 'Component_2', 'Component_3', 'Component_4']]
 
         components = pd.Series(self.master_components.values.ravel('F')).unique()
 
@@ -438,7 +438,9 @@ class DataBuild:
                 component_pubchem_df = component_pubchem_df.append({'compound': str(item),
                                                                     'cid': int(results_x[0].cid),
                                                                     'mw': float(results_x[0].molecular_weight),
-                                                                    'xlogp': float(results_x[0].xlogp),
+                                                                    'h_bond_donor_count': int(results_x[0].h_bond_donor_count),
+                                                                    'h_bond_acceptor_count': int(results_x[0].h_bond_acceptor_count),
+                                                                    'xlogp': float(results_x[0].xlogp) if results_x[0].xlogp != None else 0,
                                                                     'complexity': int(results_x[0].complexity),
                                                                     'heavy_atom_count': int(
                                                                         results_x[0].heavy_atom_count),
@@ -448,7 +450,26 @@ class DataBuild:
                                                                     'double_bond': int(double_bond),
                                                                     'aromatic_bond': int(aromatic_bond)},
                                                                    ignore_index=True)
+
+        component_pubchem_df = component_pubchem_df.append({'compound': "None",
+                                                            'cid': int(0),
+                                                            'mw': float(0),
+                                                            'h_bond_donor_count': int(0),
+                                                            'h_bond_acceptor_count': int(0),
+                                                            'xlogp': float(0),
+                                                            'complexity': int(0),
+                                                            'heavy_atom_count': int(
+                                                                0),
+                                                            'tpsa': int(0),
+                                                            'ssr': int(0),
+                                                            'single_bond': int(0),
+                                                            'double_bond': int(0),
+                                                            'aromatic_bond': int(0)},
+                                                           ignore_index=True)
         print(component_pubchem_df)
+
+
+
         self.component_pubchem_df = component_pubchem_df
 
     def merge_master_pubchem(self):
@@ -463,7 +484,23 @@ class DataBuild:
                                        left_on="Component_2",
                                        right_on="compound",
                                        suffixes=["_cp_1", "_cp_2"]).reset_index(drop=True)
-        results_comp_df_x_y.drop(columns=['compound_cp_1', 'compound_cp_2', 'cid_cp_1', 'cid_cp_2',
+
+        temp_cp3 = self.component_pubchem_df.copy()
+        temp_cp3.columns += "_cp_3"
+        results_comp_df_x_y_z = pd.merge(results_comp_df_x_y, temp_cp3,
+                                         how="inner",
+                                         left_on="Component_3",
+                                         right_on="compound_cp_3",
+                                         suffixes=["_cp_1", "_cp_2","_cp_3"]).reset_index(drop=True)
+        temp_cp4 = self.component_pubchem_df.copy()
+        temp_cp4.columns += "_cp_4"
+        results_comp_df_x_y_z_w = pd.merge(results_comp_df_x_y_z, temp_cp4,
+                                           how="inner",
+                                           left_on="Component_4",
+                                           right_on="compound_cp_4",
+                                           ).reset_index(drop=True)
+        results_comp_df_x_y_z_w.drop(columns=['compound_cp_1', 'compound_cp_2', 'cid_cp_1', 'cid_cp_2',
+                                          'compound_cp_3', 'compound_cp_4', 'cid_cp_3', 'cid_cp_4'
                                  # 'mw_cp_1',
       #                            'mw_cp_2',
      #                               'complexity_cp_2',
@@ -489,7 +526,11 @@ class DataBuild:
         #                                   'xlogp_cp_1':'xlogp'},
         #                           axis = 'columns',
         #                           inplace=True)
-        self.master_formulation_results_df = results_comp_df_x_y
+        self.master_formulation_results_df = results_comp_df_x_y_z_w
+    def _component_drop(self):
+        self.master_formulation_results_df.drop(columns=['Component_1', 'Component_2', 'Component_3',
+                                                         'Component_4'], inplace=True)
+        return self.master_formulation_results_df
 
     def cols_not_unique_check(self):
         col_not_unique = []
@@ -544,6 +585,8 @@ dataoutput.data_size_aggregation_check()
 dataoutput.cleaning_master_df_()
 dataoutput.pubchem_data()
 dataoutput.merge_master_pubchem()
+dataoutput._component_drop()
 dataoutput.cols_not_unique_check()
 dataoutput.column_categ_check_object_type()
+
 dataoutput.output_files()

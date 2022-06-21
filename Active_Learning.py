@@ -12,10 +12,11 @@
 import math
 import os
 import platform
+import random
 from datetime import datetime
 from random import shuffle
 from typing import Callable, Union, Optional
-
+import shortuuid
 import numpy as np
 import pandas as pd
 from sqlalchemy.orm.loading import instances
@@ -26,12 +27,14 @@ from Cluster import KMeans_Cluster, HDBScan
 from CommitteeClass import CommitteeRegressor, CommitteeClassification
 from DataLoad import Data_Load_Split
 from DiversitySampling_Clustering import DiversitySampling
-from Models import SvmModel, RfModel, CBModel, SVR_Model, RandomForestEnsemble, CatBoostReg, SVRLinear
+from Models import SvmModel, RfModel, CBModel, SVR_Model, RandomForestEnsemble, CatBoostReg, SVRLinear, Neural_Network
 from PreProcess import MinMaxScaling, Standardisation
 from QueriesCommittee import max_disagreement_sampling, max_std_sampling
 from SelectionFunctions import SelectionFunction
 from TrainModel import TrainModel
 from confusion_matrix_custom import make_confusion_matrix
+
+from mrmr_algorithm import MRMR
 
 """'
 
@@ -42,7 +45,7 @@ GATHER DATA
 if platform.system() == 'Windows':
     os.chdir()
 elif platform.system() == 'Darwin':
-    wrk_path_3 = r"/Users/calvin/Documents/OneDrive/Documents/2020/Liposomes Vitamins/LiposomeFormulation"
+    wrk_path_3 = r"/Users/calvin/Documents/OneDrive/Documents/2022/Data_Output"
     os.chdir(wrk_path_3)
 
 classification_output_path_1 = r"/Users/calvin/Documents/OneDrive/Documents/2022/ClassifierCommittee_Output"
@@ -57,7 +60,7 @@ Pull in Unlabelled data
 
 # TODO need to determine how to implement it into a class (is it even required?)
 
-def unlabelled_data(file, method):
+def unlabelled_data(file, method, column_removal_experiment: list=None):
     ul_df = pd.read_csv(file)
     column_drop = ['Duplicate_Check',
                    'PdI Width (d.nm)',
@@ -65,23 +68,22 @@ def unlabelled_data(file, method):
                    'Z-Average (d.nm)',
                    'ES_Aggregation']
 
-    useless_clm_drop = ['Req_Weight_1', 'Ethanol_1',
-                        'Req_Weight_2', 'Ethanol_2',
-                        'Req_Weight_3',
-                        'Req_Weight_4', 'Ethanol_4',
-                        'ethanol_dil',
-                        'component_1_vol_stock',
-                        'component_2_vol_stock',
-                        'component_3_vol_stock'
-                        ]
-    ul_df = ul_df.drop(columns=column_drop)
-    ul_df = ul_df.drop(columns=useless_clm_drop)
-    ul_df.replace(np.nan, 'None', inplace=True)
-    ul_df = pd.get_dummies(ul_df, columns=["Component_1", "Component_2", "Component_3"],
-                           prefix="", prefix_sep="")
-    # if method=='fillna':    ul_df['Component_3'] = ul_df['Component_3'].apply(lambda x: None if pd.isnull(x) else x) #TODO This should be transformed into an IF function, thus when the function for unlabelled is filled with a parameter, then activates
 
-    ul_df = ul_df.groupby(level=0, axis=1, sort=False).sum()
+    ul_df = ul_df.drop(columns=column_drop)
+    #ul_df = ul_df.drop(columns=useless_clm_drop)
+
+    #Remove a column(s)
+    if column_removal_experiment is not None:
+        ul_df.drop(columns=column_removal_experiment, inplace=True)
+
+
+    ul_df.replace(np.nan, 'None', inplace=True)
+    if "Component_1" and "Component_2" and "Component_3" in ul_df.columns:
+        ul_df = pd.get_dummies(ul_df, columns=["Component_1", "Component_2", "Component_3"],
+                               prefix="", prefix_sep="")
+        # if method=='fillna':    ul_df['Component_3'] = ul_df['Component_3'].apply(lambda x: None if pd.isnull(x) else x) #TODO This should be transformed into an IF function, thus when the function for unlabelled is filled with a parameter, then activates
+
+        ul_df = ul_df.groupby(level=0, axis=1, sort=False).sum()
 
     # print(ul_df.isna().any())
     X_val = ul_df.to_numpy()
@@ -108,7 +110,9 @@ class Algorithm(object):
                  select: Callable = SelectionFunction.entropy_sampling,
                  file: str = 'unlabelled_data_full.csv',
                  limit: int = -1, perc_uncertain: float = 0.1, n_instances: Union[int, str] = 'Full',
-                 split_ratio: float = 0.2
+                 split_ratio: float = 0.2,
+                 column_removal_experiment: list=None,
+                 MRMR_K_Value: int=10
                  ):
         self.regression = None
         self.similarity_score = None
@@ -117,6 +121,7 @@ class Algorithm(object):
         assert model_type in ['Classification', 'Regression']
         self.today_date = datetime.today().strftime('%Y%m%d')
         self.today_date_time = datetime.today().strftime('%Y%m%d_%H%M_incomplete')
+        self.time = datetime.today().strftime('%H%M')
         self.model_test = None
         self.optimised_classifier = None
         self.model_object = model_object
@@ -135,7 +140,9 @@ class Algorithm(object):
         self.classification = None
         self.scoring_type = scoring_type
         self.save_path = save_path
-
+        self.column_removal_experiment=column_removal_experiment
+        self.uuid = shortuuid.ShortUUID().random(length=10).upper()
+        self.K = MRMR_K_Value
         #######New Data - from self.create_data()/self.normalise_data()
         self.X_val = None
         self.y_train = None
@@ -153,7 +160,7 @@ class Algorithm(object):
         self.normalise_data()
 
     def create_save_folder(self):
-        dirName = self.today_date_time
+        dirName = str(self.uuid) +'_'+ str(self.today_date_time)
 
         try:
             # Create Directory
@@ -169,8 +176,8 @@ class Algorithm(object):
         # Pull in unlabelled Data
 
         self.X_val, self.columns_x_val = unlabelled_data(self.file,
-                                                         method='fillna')  # TODO need to rename
-
+                                                         method='fillna', column_removal_experiment=self.column_removal_experiment)  # TODO need to rename
+        random.seed(42) #This shhould ensure shuffling is always the same
         if self.limit > 0:
             shuffle(self.X_val)
             self.X_val = self.X_val[:self.limit]
@@ -188,14 +195,31 @@ class Algorithm(object):
         # uncertain_count = math.ceil(len(self.X_val) * self.perc_uncertain)
 
         # Run Split
+        #DLS onlly accurate up to 1000.0 size, need to filter
 
         data_load_split = Data_Load_Split("Results_Complete.csv", hide_component=self.hide, alg_categ=self.model_type,
                                           split_ratio=self.split_ratio,
-                                          shuffle_data=True)
+                                          shuffle_data=True, filter_target=True, target='Z-Average (d.nm)',
+                                          smaller_than=1000.0, column_removal_experiment=self.column_removal_experiment)
         self.converted_columns = data_load_split.columns_converted
         self.target_labels = data_load_split.class_names_str
 
+        self.gaussian_result = data_load_split.analyse_data(save_path=self.save_path, column_names=self.columns_x_val, plot = False)
+        mrmr = MRMR(data_load_split.X, data_load_split.y, self.columns_x_val, K=self.K)
+        self.selected, self.not_selected = mrmr.computing_correlations()
+
         self.X_train, self.X_test, self.y_train, self.y_test = data_load_split.split_train_test()
+
+
+        ### Log Transform y target
+        #TODO Implement better
+
+        if self.gaussian_result == False:
+            self.y_train = np.log(self.y_train)
+            self.y_test = np.log(self.y_test)
+        else:
+            pass
+        ###
         return self.X_train, self.X_test, self.y_train, self.y_test
         # normalise data - Increased accuracy from 50% to 89%
 
@@ -205,69 +229,28 @@ class Algorithm(object):
         self.X_train, self.X_val, self.X_test = self.normaliser.transform_scale(self.X_train, self.X_val, self.X_test, converted_columns=self.converted_columns)
         return self.X_train, self.X_val, self.X_test
 
-    def analyse_data(self):
-        data_analyse = Data_Analyse()
-
-        data_analyse.histogram(self.y_train,data_name='y_train', save_path=self.save_path,plot=False)
-        data_analyse.histogram(self.y_test,data_name='y_test', save_path=self.save_path,plot=False)
-
-        data_analyse.qqplot_data(self.y_train,data_name='y_train',save_path=self.save_path ,plot=False)
-        data_analyse.qqplot_data(self.y_test,data_name='y_test',save_path=self.save_path ,plot=False)
-
-        print('Shapiro Wilk Y Train')
-        self.shapiro_wilk_y_train = data_analyse.shapiro_wilk_test(self.y_train)
-
-        print(self.shapiro_wilk_y_train)
-        print('Shapiro Wilk Y Test')
-        self.shapiro_wilk_y_test = data_analyse.shapiro_wilk_test(self.y_test)
-
-        print(self.shapiro_wilk_y_test)
-
-        print('Dagostino K^2 Y Train')
-        self.dagostino_k2_y_train, self.dagostino_p_y_train = data_analyse.dagostino_k2(self.y_train)
-        print('Dagostino K^2 Y Test')
-        self.dagostino_k2_y_test , self.dagostino_p_y_test = data_analyse.dagostino_k2(self.y_test)
 
 
-        print('Anderson Y Train')
-        self.anderson_darling_train = data_analyse.anderson_darling(self.y_train)
-        print('Anderson Y Test')
-        self.anderson_darling_test = data_analyse.anderson_darling(self.y_test)
-
-        print('Heatmap X Train')
-        self.heatmap_train = data_analyse.heatmap(self.X_train, self.columns_x_val,data_name='x_train',save_path=self.save_path ,plot=False)
-
-        print('Box Plot X Train')
-        self.box_plot_train = data_analyse.box_plot(self.X_train, self.columns_x_val,data_name='x_train',save_path=self.save_path ,plot=False)
-
-        print('Variance Inflation Factor_X_train')
-        self.variance_inflation_factor_x_train = data_analyse.variance_inflation_factor(self.X_train,self.columns_x_val)
-        print(self.variance_inflation_factor_x_train)
-
-        return
-
-
-
-
-    def run_algorithm(self, splits: int = 5, grid_params=None, skip_unlabelled_analysis: bool = False, verbose: int = 0):
+    def run_algorithm(self, search_init: str='gridsearch',splits: int = 5, grid_params=None, skip_unlabelled_analysis: bool = False, verbose: int = 0,kfold_repeats: int =1 ):
+        self.kfold_splits = splits
         if self.model_type == 'Regression':
-            self.regression_model(splits, grid_params, skip_unlabelled_analysis=skip_unlabelled_analysis, verbose=verbose)
+            self.regression_model(search_init,splits, grid_params, skip_unlabelled_analysis=skip_unlabelled_analysis, verbose=verbose, kfold_shuffle=kfold_repeats)
             self.regression = 1
         elif self.model_type == 'Classification':
             self.classification_model(splits, grid_params)
             self.classification = 1
 
-    def regression_model(self, splits: int = 5, grid_params=None, skip_unlabelled_analysis: bool = False,
-                         verbose: int = 0):
+    def regression_model(self,search_init: str = 'gridsearch', splits: int = 5, grid_params=None, skip_unlabelled_analysis: bool = False,
+                         verbose: int = 0, kfold_shuffle: int = 1):
         if type(self.model_object) is list:
             self.committee_models = CommitteeRegressor(self.model_object, self.X_train, self.X_test, self.y_train,
                                                        self.y_test, self.X_val,
                                                        splits=splits,
-                                                       kfold_shuffle=True,
+                                                       kfold_shuffle=kfold_shuffle,
                                                        scoring_type=self.scoring_type,
                                                        instances=self.n_instances,
                                                        query_strategy=max_std_sampling)
-            self.scores = self.committee_models.gridsearch_committee(grid_params=grid_params, verbose=verbose)
+            self.scores = self.committee_models.gridsearch_committee(search_init=search_init,grid_params=grid_params, verbose=verbose)
             self.committee_models.fit_data()
             self.score_data = self.committee_models.score()
             self.selection_probas_val, *rest = self.committee_models.query(self.committee_models,
@@ -277,8 +260,9 @@ class Algorithm(object):
             #                      metric='gower')
             self.committee_models.predictionvsactual(save_path=self.save_path, plot=False)
             self.models_algorithms = self.committee_models.printname()
-            self.committee_models.lime_analysis(self.columns_x_val, save_path=self.save_path,
-                                                skip_unlabelled_analysis=skip_unlabelled_analysis)
+            self.committee_models.out_cv_score(save_path=self.save_path)
+            #self.committee_models.lime_analysis(self.columns_x_val, save_path=self.save_path,
+            #                                   skip_unlabelled_analysis=skip_unlabelled_analysis)
 
     def classification_model(self, splits: int = 5, grid_params=None):
         if type(self.model_object) is list:
@@ -313,6 +297,7 @@ class Algorithm(object):
                            alpha: Optional[float] = 0.01):
         self.density_method = method
         self.method_threshold = threshold
+        self.method_n_instances = n_instances
         sim_init = Similarity_Measure.Similarity(self.selection_probas_val[1], self.selection_probas_val[0])
 
         if method == 'cosine':
@@ -475,6 +460,130 @@ class Algorithm(object):
 
         writer.save()
 
+    def random_unlabelled(self, n_instances: int):
+
+
+
+
+        _, reversed_x_val, _ = self.normaliser.inverse(self.X_train, self.X_val, self.X_test,
+                                                       converted_columns=self.converted_columns)
+        unlabeled_data= pd.DataFrame(reversed_x_val, columns=self.columns_x_val)
+        unlabeled_data['original_index'] = unlabeled_data.index
+
+        random_data = unlabeled_data.sample(n=n_instances)
+        file_name = "random_unlabeled_data_points.xlsx"
+        file_name = os.path.join(self.save_path, file_name)
+        random_data.to_excel(file_name, index_label=False)
+
+
+    def master_file(self):
+
+        path = r"/Users/calvin/Documents/OneDrive/Documents/2022/Data_Output"
+        file_name = "MasterFile_AL_Results.xlsx"
+        #Check if file exists
+        if os.path.isfile(os.path.join(path,file_name)) == True:
+            #build out file
+            df_file = pd.read_excel(os.path.join(path,file_name))
+            df_temp = pd.DataFrame(columns=df_file.columns)
+
+            df_temp['date'] = [int(self.today_date)]
+            df_temp['time'] = [int(self.time)]
+            df_temp['guid'] = [self.uuid]
+
+            temp_list = []
+            for i in range(0,len(self.model_object)):
+                temp_list.append(str(self.model_object[i].model_type))
+
+            listToStr = '-'.join(map(str, temp_list))
+            df_temp['algorithms'] = [listToStr]
+            df_temp['sampling_method'] = self.select.__name__
+            df_temp['model_type'] = self.model_type
+            df_temp['scoring_type'] = self.scoring_type
+            df_temp['split_ratio'] = [float(self.split_ratio)]
+            temp_list_columns=[]
+            for i in range(0,len(self.column_removal_experiment)):
+                temp_list_columns.append(str(self.column_removal_experiment[i]))
+
+            listToStr_col = ', '.join(map(str, temp_list_columns))
+
+            df_temp['columns_removed'] = [listToStr_col]
+            df_temp['kfold_splits'] = self.kfold_splits
+            df_temp['normaliser'] = str(self.normaliser.name)
+            df_temp['alg_1'] = [self.scores[str(self.model_object[0].model_type)][0]]
+            df_temp['alg_1_cv'] = self.scores[str(self.model_object[0].model_type)][1]
+            df_temp['alg_1_train'] = self.score_data[str(self.model_object[0].model_type) + '_train'][1]
+            df_temp['alg_1_test'] = self.score_data[str(self.model_object[0].model_type) + '_test'][1]
+            df_temp['alg_2'] = [self.scores[str(self.model_object[1].model_type)][0]]
+            df_temp['alg_2_cv'] = self.scores[str(self.model_object[1].model_type)][1]
+            df_temp['alg_2_train'] = self.score_data[str(self.model_object[1].model_type) + '_train'][1]
+            df_temp['alg_2_test'] = self.score_data[str(self.model_object[1].model_type) + '_test'][1]
+            df_temp['alg_3'] = [self.scores[str(self.model_object[2].model_type)][0]]
+            df_temp['alg_3_cv'] = self.scores[str(self.model_object[2].model_type)][1]
+            df_temp['alg_3_train'] = self.score_data[str(self.model_object[2].model_type) + '_train'][1]
+            df_temp['alg_3_test'] = self.score_data[str(self.model_object[2].model_type) + '_test'][1]
+
+            df_temp['density_metric'] = [self.density_method]
+            df_temp['metric_threshold'] = [self.method_threshold]
+            df_temp['n_instances'] = [self.method_n_instances]
+            df_temp['MRMR_K'] = [self.K]
+            df_temp['MRMR_Selected'] = [self.selected]
+            df_temp['MRMR_Not_Selected'] = [self.not_selected]
+            master_df = pd.concat([df_file, df_temp],ignore_index=True, axis=0)
+
+        else:
+            #create new file
+            master_df = pd.DataFrame(columns=['date','time','guid','algorithms','sampling_method','model_type',
+                                              'scoring_type','split_ratio','columns_removed','kfold_splits','normaliser',
+                                              'alg_1','alg_1_cv','alg_1_train','alg_1_test',
+                                              'alg_2','alg_2_cv','alg_2_train','alg_2_test',
+                                              'alg_3','alg_3_cv','alg_3_train','alg_3_test','density_metric',
+                                              'metric_threshold','n_instances'])
+
+            master_df['date'] = [self.today_date]
+            master_df['time'] = [self.time]
+            master_df['guid'] = [self.uuid]
+
+            temp_list = []
+            for i in range(0,len(self.model_object)):
+                temp_list.append(str(self.model_object[i].model_type))
+
+            listToStr = '-'.join(map(str, temp_list))
+            master_df['algorithms'] = [listToStr]
+            master_df['sampling_method'] = self.select.__name__
+            master_df['model_type'] = self.model_type
+            master_df['scoring_type'] = self.scoring_type
+            master_df['split_ratio'] = self.split_ratio
+            temp_list_columns=[]
+            for i in range(0,len(self.column_removal_experiment)):
+                temp_list_columns.append(str(self.column_removal_experiment[i]))
+
+            listToStr_col = ', '.join(map(str, temp_list_columns))
+
+            master_df['columns_removed'] = [listToStr_col]
+            master_df['kfold_splits'] = self.kfold_splits
+            master_df['normaliser'] = str(self.normaliser.name)
+            master_df['alg_1'] = [self.scores[str(self.model_object[0].model_type)][0]]
+            master_df['alg_1_cv'] = self.scores[str(self.model_object[0].model_type)][1]
+            master_df['alg_1_train'] = self.score_data[str(self.model_object[0].model_type) + '_train'][1]
+            master_df['alg_1_test'] = self.score_data[str(self.model_object[0].model_type) + '_test'][1]
+            master_df['alg_2'] = [self.scores[str(self.model_object[1].model_type)][0]]
+            master_df['alg_2_cv'] = self.scores[str(self.model_object[1].model_type)][1]
+            master_df['alg_2_train'] = self.score_data[str(self.model_object[1].model_type) + '_train'][1]
+            master_df['alg_2_test'] = self.score_data[str(self.model_object[1].model_type) + '_test'][1]
+            master_df['alg_3'] = [self.scores[str(self.model_object[2].model_type)][0]]
+            master_df['alg_3_cv'] = self.scores[str(self.model_object[2].model_type)][1]
+            master_df['alg_3_train'] = self.score_data[str(self.model_object[2].model_type) + '_train'][1]
+            master_df['alg_3_test'] = self.score_data[str(self.model_object[2].model_type) + '_test'][1]
+
+            master_df['density_metric'] = [self.density_method]
+            master_df['metric_threshold'] = [self.method_threshold]
+            master_df['n_instances'] = [self.method_n_instances]
+            master_df['MRMR_K'] = [self.K]
+            master_df['MRMR_Selected'] = [self.selected]
+            master_df['MRMR_Not_Selected'] = [self.not_selected]
+
+        master_df.to_excel(os.path.join(path,file_name),index=False)
+
     def change_folder_name_complete(self):
 
         old_name = self.save_path
@@ -483,7 +592,9 @@ class Algorithm(object):
 
 
 # models = [SvmModel, RfModel, CBModel]
-models = [SVRLinear, RandomForestEnsemble, CatBoostReg]
+#models = [SVRLinear, RandomForestEnsemble, CatBoostReg]
+models = [SVR_Model, RandomForestEnsemble, CatBoostReg]
+         # Neural_Network]
 # selection_functions = [selection_functions]
 
 SvmModel = {'C': [0.01, 0.1],  # np.logspace(-5, 2, 8),
@@ -509,59 +620,125 @@ CBModel = {
     #    'border_count': [32, 5, 10, 20, 50, 100, 200]
 }
 # https://www.vebuso.com/2020/03/svm-hyperparameter-tuning-using-gridsearchcv/
-SVM_Reg = {'C': [50, 100, 150, 200, 500, 1000, 5000, 10000],  # np.logspace(-6, 3,10), #*
+SVM_Reg = {'C': [0.0001,0.01,0.1,1,5,10,50, 100, 200,500, 1000],  # np.logspace(-6, 3,10), #*
            'gamma': np.logspace(-4, 2, 7),  # Kernel coefficient for rbf, poly & sig
            # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-           'kernel': [  # 'rbf',
-               # 'poly',
-               # 'sigmoid'
+           'kernel': [  'rbf',
+               #'poly',
+               'sigmoid',
                'linear'  # *
            ]
-           # ,'coef0': [0.1, 1] #Independent term for poly & sig
-           # 'degree': [1, 3, 4], #Poly
-    , 'epsilon': [0.1, 0.2, 0.3, 0.5, 1, 5, 10, 50, 70]
-    , 'tol': np.logspace(-6, 1, 8)
+          #  ,'coef0': [0,0.0001,0.001,0.01,0.1, 1,10,20,100] #Independent term for poly & sig
+           #, 'degree': [1,2, 3, 4] #Poly
+    #, 'epsilon': [0,0.001,0.01,0.05,0.1, 0.5, 1, 5, 10, 50, 100]
+  #  , 'tol': np.logspace(-4, 1, 5)
            }
+
+SVM_Reg['gamma'] = np.append(SVM_Reg['gamma'],['auto','scale'])
+
 RFE_Reg = {'n_estimators': [int(x) for x in np.linspace(start=200,
                                                         stop=1000,
                                                         num=9)],
-           # 'criterion': ['squared_error', 'absolute_error', 'poisson'],
-           # 'max_features': ['auto', 'sqrt', 'log2'],
+            'criterion': ['squared_error', 'absolute_error', 'poisson'],
+           'max_features': ['auto', 'sqrt', 'log2'],
            # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-           # 'max_depth': [int(x) for x in np.linspace(1, 110,num=12)],
-           # 'bootstrap': [False, True],
+           #'max_depth': [int(x) for x in np.linspace(1, 110,num=12)],
+           'bootstrap': [False, True],
            # 'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)]
            }
-CatBoost_Reg = {'learning_rate': [0.03, 0.1],
-                'depth': [2, 3, 4, 6]  # DEFAULT is 6. Decrease value to prevent overfitting
-    , 'l2_leaf_reg': [3, 12, 13]  # Increase the value to prevent overfitting DEFAULT is 3
+CatBoost_Reg = {'learning_rate': [0.01,0.03, 0.1,1],
+                'depth': [2,4, 6]  # DEFAULT is 6. Decrease value to prevent overfitting
+    , 'l2_leaf_reg': [10,15,30,50] # Increase the value to prevent overfitting DEFAULT is 3
                 }
 
-SVRLinear = {'C': [50, 100, 150, 200, 500, 1000, 5000, 10000],
-             'tol':  np.logspace(-6, 1, 8),
-             'epsilon': [0.1, 0.2, 0.3, 0.5, 1, 5, 10, 50, 70],
-             'loss': ['epsilon_insensitive', 'squared_epsilon_insensitive'],
-             'fit_intercept': [True, False],
-             'max_iter': [1000, 10000]
+SVRLinear = {'C': [1,70,100,200,300,1000],
+            # 'tol':  np.logspace(-20, 0,21),
+            # 'epsilon': [ 0,0.0001,0.1, 0.2, 0.5, 1, 5, 10, 50, 70],
+            # 'loss': ['epsilon_insensitive', 'squared_epsilon_insensitive'],
+            # 'fit_intercept': [True, False],
+             'max_iter': [100000, 1000000,10000000]
 
 
 }
+
+
+######Genetic Search Opt
+#from sklearn_genetic.space import Integer, Categorical, Continuous
+#SVM_Reg_Genetic = {'C': Continuous(0.001,100)
+           #'gamma': Continuous(-1,10,distribution="uniform") # Kernel coefficient for rbf, poly & sig
+           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
+ #          ,'loss': Categorical(['epsilon_insensitive','squared_epsilon_insensitive'])
+
+           #'kernel':Categorical(['rbf',
+               #'poly',
+               #'sigmoid'
+            #   'linear'  # *
+           #])
+            #,'coef0': Integer(0, 1) #Independent term for poly & sig
+           #, 'degree':Integer(1, 4) #Poly
+  # , 'epsilon': Integer(0, 50)
+    #, 'tol': np.logspace(-6, 1, 8)
+   # ,'max_iter': Categorical([1000000])
+    #       }
+#RFE_Reg_genetic = {'n_estimators': Integer (100,1000),
+ #                  'bootstrap': Categorical([True,False])}
+NN_Regression = {
+    #'initializer': ['normal', 'uniform'],
+    #'activation': ['relu', 'sigmoid'],
+    #'optimizer': ['adam', 'rmsprop'],
+    #'loss': ['mse', 'mae'],
+    'batch_size': [32, 64],
+    'epochs': [5, 10],
+}
+
+
+
 grid_params = {}
 grid_params['SVC'] = SvmModel
 grid_params['Random_Forest'] = RfModel
 grid_params['CatBoostClass'] = CBModel
-grid_params['SVR'] = SVM_Reg
+#grid_params['SVR_Linear'] = SVM_Reg_Genetic
 grid_params['RFE_Regressor'] = RFE_Reg
 grid_params['CatBoostReg'] = CatBoost_Reg
 grid_params['SVR_Linear'] = SVRLinear
+grid_params['SVR'] = SVM_Reg
+grid_params['NN_Reg'] = NN_Regression
+
 
 save_path = regression_output_path_1
 alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
-                scoring_type='r2', save_path=save_path, split_ratio=0.3)
+                scoring_type='r2', save_path=save_path, split_ratio=0.30,
+                column_removal_experiment=['xlogp_cp_1','xlogp_cp_2','xlogp_cp_3',
+                                           'aromatic_bond_cp_2','complexity_cp_3',
+                                           'complexity_cp_2','complexity_cp_1','Final_Concentration',
+                                           'final_lipid_volume','component_1_vol','component_2_vol',
+                                           'component_3_vol','component_4_vol','component_1_vol_conc',
+                                           'tpsa_cp_3','tpsa_cp_2',
+                                           #'heavy_atom_count_cp_1','heavy_atom_count_cp_2','heavy_atom_count_cp_3',
+                                           #'single_bond_cp_1','double_bond_cp_1',
+                                           #'single_bond_cp_2','double_bond_cp_2',
+                                           #'single_bond_cp_3','double_bond_cp_3',
+                                           #'h_bond_donor_count_cp_2','h_bond_acceptor_count_cp_2',
+                                           #'h_bond_donor_count_cp_3','h_bond_acceptor_count_cp_3',
+                                           #'ssr_cp_2','ssr_cp_3',
+                                            'Req_Weight_1', 'Ethanol_1',
+                                            'Req_Weight_2', 'Ethanol_2',
+                                            'Req_Weight_3',
+                                            'Req_Weight_4', 'Ethanol_4'
+                                            #'ethanol_dil',
+                                            #'component_1_vol_stock',
+                                            #'component_2_vol_stock',
+                                            #'component_3_vol_stock'
 
-alg.analyse_data()
-alg.run_algorithm(splits=5, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=10)
+                                           ],
+                MRMR_K_Value=25)
+
+#alg.analyse_data()
+alg.run_algorithm(search_init='gridsearch',splits=3, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=10, kfold_repeats=2)
 alg.compare_query_changes()
-alg.similairty_scoring(method='gower', threshold=0.25, n_instances=100)
+alg.similairty_scoring(method='gower', threshold=0.8, n_instances=10)
 alg.output_data()
+alg.random_unlabelled(n_instances=10)
+alg.master_file()
 alg.change_folder_name_complete()
+

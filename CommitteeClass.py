@@ -5,10 +5,11 @@ from typing import List, Iterator, Callable, Optional
 import pickle
 from datetime import datetime
 
-import lime.lime_tabular
-import shap
+#import lime.lime_tabular
+import pandas as pd
+#import shap
 from matplotlib import pyplot as plt
-from shapash import SmartExplainer
+#from shapash import SmartExplainer
 
 from ToolsActiveLearning import retrieverows
 import numpy as np
@@ -249,7 +250,7 @@ class CommitteeRegressor(ABC):
 
         def __init__(self, learner_list: List[BaseModel], X_training, X_testing, y_training, y_testing, X_unlabeled,
                      query_strategy: Callable,
-                     splits: int = 5, kfold_shuffle: bool = True, scoring_type: str = 'r2', instances: int = 10):
+                     splits: int = 5, kfold_shuffle: int=1, scoring_type: str = 'r2', instances: int = 10):
 
             self.score_parameters = {'r2': r2_score, 'explained_variance': explained_variance_score, 'max_error': max_error,
                                      'neg_mean_absolute_error': mean_absolute_error,
@@ -325,10 +326,11 @@ class CommitteeRegressor(ABC):
             except AttributeError:
                 raise NotFittedError('Not all estimators are fitted. Fit all estimators before using this method')
 
-        def gridsearch_committee(self, grid_params: dict = None, verbose: int = 0):
+        def gridsearch_committee(self, grid_params: dict = None, verbose: int = 0, search_init: str='gridsearch'):
             score_values = {}
             for learner_idx, learner in enumerate(self.learner_list):
                 score_values[learner.model_type] = learner.gridsearch(X_train=self.X_training, y_train=self.y_training,
+                                                                      search_init=search_init,
                                                                       splits=self.splits,
                                                                       kfold_shuffle=self.kfold_shuffle,
                                                                       scoring_type=self.scoring_type,
@@ -397,7 +399,7 @@ class CommitteeRegressor(ABC):
                 learner.predict_actual_graph(y_actual_train=self.y_training, y_actual_test=self.y_testing, score_query=self.score_query, save_path=save_path, plot=plot)
 
 
-        def lime_analysis(self, feature_names, save_path: Optional[str], skip_unlabelled_analysis: bool=False):
+        #def lime_analysis(self, feature_names, save_path: Optional[str], skip_unlabelled_analysis: bool=False):
             # feat_names: str = None, target_names: str = None
             # explainer = lime.lime_tabular.LimeTabularExplainer(self.X_training, feature_names=feat_names,
             # class_names=target_names,
@@ -408,33 +410,40 @@ class CommitteeRegressor(ABC):
             # for learner_idx, learner in enumerate(self.learner_list):
             #    exp = explainer.explain_instance(self.X_testing[i], learner.test_y_predicted, num_features=len(feat_names))
             #    exp.sh
-            for learner_idx, learner in enumerate(self.learner_list):
+            #for learner_idx, learner in enumerate(self.learner_list):
                 # if learner.model_type == ['Random_Forest', 'CatBoost_Class']:
                 # xpl = SmartExplainer(model=learner.optimised_model)
                 # xpl.compile(x=self.X_testing)
-                # app = xpl.run_app(title_story='Test')
-                # https://towardsdatascience.com/explain-any-models-with-the-shap-values-use-the-kernelexplainer-79de9464897a
-                X_train_means = shap.kmeans(self.X_training, 9)
-                ex = shap.KernelExplainer(learner.predict, X_train_means)
-                ex.shap_values(self.X_training[0, :], nsamples=1000)
-                shap_values = ex.shap_values(self.X_testing[0, :])
-                f = shap.force_plot(ex.expected_value, shap_values, self.X_testing[0, :], feature_names=feature_names)
-                html_name = str(learner.model_type) + "_single_prediction_test_test_Regression.html"
-                html_name = os.path.join(save_path, html_name)
-                shap.save_html(html_name, f)
+            #    # app = xpl.run_app(title_story='Test')
+            #    # https://towardsdatascience.com/explain-any-models-with-the-shap-values-use-the-kernelexplainer-79de9464897a
+            #    X_train_means = shap.kmeans(self.X_training, 9)
+            #    ex = shap.KernelExplainer(learner.predict, X_train_means)
+            #    ex.shap_values(self.X_training[0, :], nsamples=1000)
+            #    shap_values = ex.shap_values(self.X_testing[0, :])
+           #     f = shap.force_plot(ex.expected_value, shap_values, self.X_testing[0, :], feature_names=feature_names)
+          #      html_name = str(learner.model_type) + "_single_prediction_test_test_Regression.html"
+         #       html_name = os.path.join(save_path, html_name)
+        #        shap.save_html(html_name, f)#
 
-                shap_values = ex.shap_values(self.X_testing)
-                fig = plt.gcf()
-                shap.summary_plot(shap_values, self.X_testing, feature_names=feature_names)
-                fig_summary = str(learner.model_type) + "_all_predictions_test_Regression.jpg"
-                fig_summary = os.path.join(save_path, fig_summary)
-                fig.savefig(fig_summary, bbox_inches='tight')
-                if skip_unlabelled_analysis == False:
-                    if learner.model_type in ['RFE_Regressor', 'CatBoostReg']:
-                        explainer = shap.KernelExplainer(learner.predict, self.X_training) #I changed this from Tree Explainer(learner.optimised_model) to KernelExplainer to do nsamples
-                        shap_values = explainer.shap_values(self.X_unlabeled[0:1000, :], nsamples=1000)
-                        fig = plt.gcf()
-                        shap.summary_plot(shap_values, self.X_unlabeled[0:1000, :], feature_names=feature_names)
-                        fig_summary = str(learner.model_type) + "_all_predictions_unlabelled_regression.jpg"
-                        fig_summary = os.path.join(save_path, fig_summary)
-                        fig.savefig(fig_summary, bbox_inches='tight')
+        #        shap_values = ex.shap_values(self.X_testing)
+        #        plt.close("all")
+        #        fig = plt.gcf()
+        #        shap.summary_plot(shap_values, self.X_testing, feature_names=feature_names)
+        #        fig_summary = str(learner.model_type) + "_all_predictions_test_Regression.jpg"
+        #        fig_summary = os.path.join(save_path, fig_summary)
+        #       fig.savefig(fig_summary, bbox_inches='tight')
+        #        if skip_unlabelled_analysis == False:
+        #            if learner.model_type in ['RFE_Regressor', 'CatBoostReg']:
+        #                explainer = shap.KernelExplainer(learner.predict, self.X_training) #I changed this from Tree Explainer(learner.optimised_model) to KernelExplainer to do nsamples
+        #                shap_values = explainer.shap_values(self.X_unlabeled[0:1000, :], nsamples=1000)
+        #                fig = plt.gcf()
+        #                shap.summary_plot(shap_values, self.X_unlabeled[0:1000, :], feature_names=feature_names)
+        #                fig_summary = str(learner.model_type) + "_all_predictions_unlabelled_regression.jpg"
+        #                fig_summary = os.path.join(save_path, fig_summary)
+        #                fig.savefig(fig_summary, bbox_inches='tight')
+
+        def out_cv_score(self, save_path: Optional[str]):
+            for learner_idx, learner in enumerate(self.learner_list):
+                save_path=save_path
+                file_name = str(learner.model_type) + '_cv_results.xlsx'
+                learner.cv_results.to_excel(os.path.join(save_path,file_name))

@@ -9,7 +9,7 @@ from sklearn import preprocessing
 from sklearn.decomposition import PCA
 
 class MinMaxScaling(object):
-
+    name = 'MinMax_Scaler'
     def __init__(self):
         self.scaler = preprocessing.MinMaxScaler()
 
@@ -58,7 +58,7 @@ class MinMaxScaling(object):
 
 
 class Standardisation(object):
-
+    name = 'Standardisation'
     def __init__(self):
         self.scaler = preprocessing.StandardScaler()
 

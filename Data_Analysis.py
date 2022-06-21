@@ -6,14 +6,18 @@ from statsmodels.graphics.gofplots import qqplot
 from scipy.stats import shapiro, normaltest, anderson
 import seaborn as sns
 from statsmodels.stats.outliers_influence import variance_inflation_factor
+import sweetviz as sv
+from pandas_profiling import ProfileReport
+
 import os
+
 
 class Data_Analyse(object):
 
     def __init__(self):
         pass
 
-    def histogram(self,data, data_name: str,save_path: Optional[str], plot: bool=False):
+    def histogram(self, data, data_name: str, save_path: Optional[str], plot: bool = False):
         print(plt.get_backend())
 
         # close any existing plots
@@ -22,28 +26,27 @@ class Data_Analyse(object):
         if plot == True:
             plt.show()
         elif plot == False:
-            plot_name = str(data_name)+ '_histogram.jpg'
+            plot_name = str(data_name) + '_histogram.jpg'
             plot_name = os.path.join(save_path, plot_name)
             plt.tight_layout()
-            plt.savefig(plot_name, dpi = 400)
+            plt.savefig(plot_name, dpi=400)
 
-    def qqplot_data(self, data, data_name: str, save_path: Optional[str], plot: bool=False):
+    def qqplot_data(self, data, data_name: str, save_path: Optional[str], plot: bool = False):
         """
         A perfect match for the distribution will be shown by a line of dots on a 45-degree angle from the bottom left
          of the plot to the top right.
         :return:
         """
-        qqplot(data,line='s')
+        qqplot(data, line='s')
 
         if plot == True:
             plt.show()
         elif plot == False:
             plot_name = str(data_name) + '_qqplot.jpg'
             plot_name = os.path.join(save_path, plot_name)
-            plt.savefig(plot_name, dpi = 400)
+            plt.savefig(plot_name, dpi=400)
 
-
-    def shapiro_wilk_test(self, data, alpha: float=0.05):
+    def shapiro_wilk_test(self, data, alpha: float = 0.05):
         '''
         The Shapiro-Wilk test evaluates a data sample and quantifies how likely it is that the data was drawn from a
         Gaussian distribution, named for Samuel Shapiro and Martin Wilk.
@@ -66,7 +69,7 @@ class Data_Analyse(object):
 
         return stat, p
 
-    def dagostino_k2(self, data, alpha: float=0.05):
+    def dagostino_k2(self, data, alpha: float = 0.05):
 
         '''
 
@@ -89,7 +92,7 @@ class Data_Analyse(object):
         else:
             print("Sample does not look Gaussian (reject H0)")
 
-        return k2, p
+        return k2, p, (float(p) > float(alpha))
 
     def anderson_darling(self, data):
         '''
@@ -100,7 +103,7 @@ class Data_Analyse(object):
         '''
         result = anderson(data)
         print('Statistic: %.3f' % result.statistic)
-        p=0
+        p = 0
         for i in range(len(result.critical_values)):
             sl, cv = result.significance_level[i], result.critical_values[i]
             if result.statistic < result.critical_values[i]:
@@ -110,16 +113,14 @@ class Data_Analyse(object):
                 print('%.3f: %.3f, data does not look normal (reject H0)' % (sl, cv))
         return result.statistic
 
-
-    def heatmap(self, data_x, dataheadings_x,data_name: str,save_path: Optional[str], plot: bool = True):
+    def heatmap(self, data_x, dataheadings_x, data_name: str, save_path: Optional[str], plot: bool = True):
         print(plt.get_backend())
 
         # close any existing plots
         plt.close("all")
         fig, ax = plt.subplots(figsize=(24, 18))
 
-
-        data_df = pd.DataFrame(data_x,columns=dataheadings_x)
+        data_df = pd.DataFrame(data_x, columns=dataheadings_x)
         sns.heatmap(data_df.corr(method='pearson'), cmap="Spectral", annot=True, linewidths=.5)
 
         if plot == True:
@@ -128,9 +129,9 @@ class Data_Analyse(object):
             plot_name = str(data_name) + '_heatmap.jpg'
             plot_name = os.path.join(save_path, plot_name)
             plt.tight_layout()
-            plt.savefig(plot_name, dpi = 400)
+            plt.savefig(plot_name, dpi=400)
 
-    def box_plot(self, data_x, dataheadings_x,data_name: str, save_path: Optional[str], plot: bool=False):
+    def box_plot(self, data_x, dataheadings_x, data_name: str, save_path: Optional[str], plot: bool = False):
         print(plt.get_backend())
 
         # close any existing plots
@@ -144,10 +145,9 @@ class Data_Analyse(object):
             plot_name = str(data_name) + '_box_plot.jpg'
             plot_name = os.path.join(save_path, plot_name)
             plt.tight_layout()
-            plt.savefig(plot_name, dpi = 400)
+            plt.savefig(plot_name, dpi=400)
 
-
-    def variance_inflation_factor(self,  data_x, dataheadings_x):
+    def variance_inflation_factor(self, data_x, dataheadings_x):
         '''
         VIF quantifies the severity of multicollinearity in an ordinary least squares regression analysis. It provides an index that measures how much the variance (the square of the estimate’s standard deviation) of an estimated regression coefficient is increased because of collinearity.
         https://en.wikipedia.org/wiki/Variance_inflation_factor
@@ -161,6 +161,28 @@ class Data_Analyse(object):
         :return: variance inflation factor. Less than 10 preferred. If receiving INF, then there is perfect colinearity
         '''
         vif = pd.DataFrame()
-        vif["features"] =dataheadings_x
+        vif["features"] = dataheadings_x
         vif["vif_Factor"] = [variance_inflation_factor(data_x, i) for i in range(data_x.shape[1])]
         print(vif)
+        return vif
+
+    def sweet_viz(self, data, feature_names,target: Optional[str]=None, save_path: Optional[str]=None):
+
+        if isinstance(data, pd.DataFrame):
+            temp_def = data
+        else:
+            temp_def =  pd.DataFrame(data,columns=feature_names)
+        advert_report = sv.analyze(temp_def,target_feat=target)
+
+        file_name = 'data_x_sweet_viz.html'
+        file_name = os.path.join(save_path, file_name)
+        advert_report.show_html(filepath=file_name,
+                 open_browser=True,
+                 layout='widescreen',
+                 scale=None)
+
+    def pandas_profiling(self, data, save_path):
+        prof = ProfileReport(data)
+        file_name = 'pandas_profile.html'
+        file_name = os.path.join(save_path, file_name)
+        prof.to_file(output_file=file_name)

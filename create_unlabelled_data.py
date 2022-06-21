@@ -15,10 +15,11 @@ import itertools
 Import dataframe
 """
 wrk_path_3 = r"/Users/calvin/Documents/OneDrive/Documents/2020/Liposomes Vitamins/LiposomeFormulation"
+save_path = r"/Users/calvin/Documents/OneDrive/Documents/2022/Data_Output"
 
 os.chdir(wrk_path_3)
-
-dataframe = pd.read_csv("Results_Complete.csv")
+results_path = os.path.join(save_path,"Results_Complete.csv")
+dataframe = pd.read_csv(results_path)
 
 print(dataframe.head())
 
@@ -85,6 +86,18 @@ vol_vol_pcnt_2_df = pd.DataFrame(columns=['vol_vol_pcnt_2'])
 vol_vol_pcnt_2_df['vol_vol_pcnt_2'] = [i for i in vol_vol_pcnt if i <= 0.50]
 print(vol_vol_pcnt_2_df)
 
+'''
+Creating Component 3 DataFrame
+
+At this point in time it is None|0
+'''
+component_3_df = pd.DataFrame(columns=['component_3'])
+list_of_component_drug_2 = ['None']
+component_3_df['component_3'] = list_of_component_drug_2
+print(component_3_df)
+
+vol_vol_pcnt_3_df = pd.DataFrame(columns=['vol_vol_pcnt_3'])
+vol_vol_pcnt_3_df['vol_vol_pcnt_3'] = [0]
 '''Creating Component 4 DataFrame (Stealth Polymer)
 1. PEG - 2000
 
@@ -94,7 +107,7 @@ this attached to dataframe['Ratio_4']
 '''
 
 component_4_df = pd.DataFrame(columns=['component_4'])
-list_component_polymer = ['PEG2000']
+list_component_polymer = ['PEG2000 DSPE']
 component_4_df['component_4'] = list_component_polymer
 print(component_4_df)
 
@@ -124,10 +137,12 @@ conc = [100,
 conc_1_df = pd.DataFrame(columns=['Concentration_1 (mM)'])
 conc_2_df = pd.DataFrame(columns=['Overall_Concentration_2'])
 conc_3_df = pd.DataFrame(columns=['Overall_Concentration_3'])
+conc_4_df = pd.DataFrame(columns=['Overall_Concentration_4'])
 
 conc_1_df['Concentration_1 (mM)'] = conc
 conc_2_df['Overall_Concetration_2'] = conc
-conc_3_df['Overall_Concentration_3'] = conc
+conc_3_df['Overall_Concetration_3'] = [0]
+conc_4_df['Overall_Concentration_4'] = conc
 
 '''
 Creating the dispense speed dataframe
@@ -164,13 +179,16 @@ print('------------------------')
 formulation_combination_df = pd.DataFrame(list(itertools.product(component_1_df.component_1,
                                                                  ethanol_df.Ethanol,
                                                                  component_2_df.component_2,
+                                                                 component_3_df.component_3,
                                                                  component_4_df.component_4,
                                                                  vol_vol_pcnt_1_df.vol_vol_pcnt_1,
                                                                  vol_vol_pcnt_2_df.vol_vol_pcnt_2,
+                                                                 vol_vol_pcnt_3_df.vol_vol_pcnt_3,
                                                                  vol_vol_pcnt_4_df.vol_vol_pcnt_4,
                                                                  conc_1_df['Concentration_1 (mM)'],
                                                                  conc_2_df['Overall_Concetration_2'],
-                                                                 conc_3_df['Overall_Concentration_3'],
+                                                                 conc_3_df['Overall_Concetration_3'],
+                                                                 conc_4_df['Overall_Concentration_4'],
                                                                  speed_disp_df.speed_disp,
                                                                  lipid_vol_pcnt_df.lipid_vol_pcnt,
                                                                  final_vol_df.final_vol
@@ -178,12 +196,15 @@ formulation_combination_df = pd.DataFrame(list(itertools.product(component_1_df.
                                           columns=['Component_1',
                                                    'Ethanol_1',
                                                    'Component_2',
+                                                   'Component_3',
                                                    'Component_4',
                                                    'Ratio_1',
                                                    'Ratio_2',
+                                                   'Ratio_3',
                                                    'Ratio_4',
                                                    'Concentration_1 (mM)',
                                                    'Overall_Concentration_2',
+                                                   'Overall_Concentration_3',
                                                    'Concentration_4',
                                                    'Dispense_Speed_uls',
                                                    'Lipid_Vol_Pcnt',
@@ -214,7 +235,7 @@ rmve = ('Component_1',
         'Final_Vol')
 for i in range(len(rmve)):
     col_list.remove(rmve[i])
-col_list
+
 formulation_combination_df['total_pcnt'] = formulation_combination_df[col_list].sum(axis=1)
 print(formulation_combination_df)
 formulation_combination_df = formulation_combination_df.loc[
@@ -283,8 +304,8 @@ formulation_combination_df.info()
 unlabelled_df = formulation_combination_df.copy()
 
 '''---------'''
-
-pubchem_df = pd.read_csv("pubchem_data.csv")
+pubchem_path = os.path.join(save_path, "pubchem_data.csv")
+pubchem_df = pd.read_csv(pubchem_path)
 
 unlabelled_df_merge = pd.merge(unlabelled_df, pubchem_df,
                                how="inner",
@@ -296,7 +317,21 @@ unlabelled_df_merge = pd.merge(unlabelled_df_merge, pubchem_df,
                                left_on="Component_2",
                                right_on="compound",
                                suffixes=["_cp_1", "_cp_2"]).reset_index(drop=True)
+temp_cp3 = pubchem_df.copy()
+temp_cp3.columns += "_cp_3"
 
+unlabelled_df_merge = pd.merge(unlabelled_df_merge, temp_cp3,
+                                 how="inner",
+                                 left_on="Component_3",
+                                 right_on="compound_cp_3",
+                                 suffixes=["_cp_1", "_cp_2", "_cp_3"]).reset_index(drop=True)
+temp_cp4 = pubchem_df.copy()
+temp_cp4.columns += "_cp_4"
+unlabelled_df_merge = pd.merge(unlabelled_df_merge, temp_cp4,
+                                   how="inner",
+                                   left_on="Component_4",
+                                   right_on="compound_cp_4",
+                                   ).reset_index(drop=True)
 '''------'''
 
 unlabelled_df_merge['Ethanol_2'] = unlabelled_df_merge['Ethanol_1']
@@ -368,8 +403,8 @@ columns = ['ES_Aggregation',
            'PdI Width (d.nm)']
 unlabelled_df_merge[columns] = np.nan
 
-unlabelled_df_merge.drop(columns=['compound_cp_1', 'compound_cp_2',
-                                  'cid_cp_1', 'cid_cp_2'],
+unlabelled_df_merge.drop(columns=['compound_cp_1', 'compound_cp_2', 'cid_cp_1', 'cid_cp_2',
+                                          'compound_cp_3', 'compound_cp_4', 'cid_cp_3', 'cid_cp_4'],
                          # 'mw_cp_1','mw_cp_2'],
                          inplace=True)
 
@@ -377,7 +412,8 @@ unlabelled_df_merge.drop(columns=['compound_cp_1', 'compound_cp_2',
 col_not_unique = []
 for col in unlabelled_df_merge.columns:
     if (len(unlabelled_df_merge[col].unique()) == 1) and (unlabelled_df_merge[col].isnull().all() == False) \
-            and ((unlabelled_df_merge[col].all() == 0) == False):
+            and ((unlabelled_df_merge[col].all() == 0) == False)\
+            and (col != 'h_bond_donor_count_cp_2') == True:
         col_not_unique.append(str(col))
         unlabelled_df_merge.drop(col, inplace=True, axis=1)
 
@@ -398,6 +434,8 @@ Need to remove volume values less than 3 ml due to the robot not being to handle
 unlabelled_df_reorder = unlabelled_df_reorder[
     (unlabelled_df_reorder.component_1_vol > 3) | (unlabelled_df_reorder.component_2_vol > 3) | (
                 unlabelled_df_reorder.component_3_vol > 3) | (unlabelled_df_reorder.component_4_vol > 3)]
+
+os.chdir(save_path)
 unlabelled_df_reorder.to_csv('unlabelled_data_full.csv', index=False)
 
 
