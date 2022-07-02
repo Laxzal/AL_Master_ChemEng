@@ -3,26 +3,20 @@ import sys
 from typing import Optional
 
 import catboost as cb
+import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import confusion_matrix, precision_score
-from sklearn.model_selection import StratifiedKFold, GridSearchCV, KFold, RepeatedKFold
+from sklearn.model_selection import StratifiedKFold, GridSearchCV, KFold, RepeatedKFold, cross_val_score
 from sklearn.svm import SVC, SVR, LinearSVR
 from sklearn.utils import compute_class_weight
-from tensorflow.python.keras.wrappers.scikit_learn import KerasRegressor
 
 from BaseModel import BaseModel
 from MSVR import MSVR
 
-# from sklearn_genetic.plots import plot_fitness_evolution, plot_search_space
-from tensorflow.python.keras.layers import Dense
-from tensorflow.python.keras.optimizers import gradient_descent_v2
-from tensorflow.python.keras import backend as K
-from tensorflow.python.keras import Sequential
-import tensorflow as tf
 
-import tensorflow.python.keras
+# from sklearn_genetic.plots import plot_fitness_evolution, plot_search_space
 
 
 # from sklearn_genetic import GASearchCV
@@ -289,7 +283,8 @@ class SVR_Model(BaseModel):
         self.deopt_classifier = None
         self.train_y_predicted = None
 
-    def gridsearch(self, X_train, y_train, search_init: str, params: dict = None, splits: int = 5,
+    def gridsearch(self, X_train: np.ndarray = None, y_train: np.ndarray = None, initialisation: str = None,
+                   params: dict = None, splits: int = 5,
                    kfold_shuffle: int = 1,
                    scoring_type: str = 'explained_variance', verbose: int = 0):
         print("GridSearching SVR...")
@@ -298,13 +293,13 @@ class SVR_Model(BaseModel):
         # TODO Better define params
 
         # TODO Create kFold&Scoring PARAM choose
-        if search_init == "gridsearch":
+        if initialisation == "gridsearch":
             self.svm_grid = GridSearchCV(self.deopt_classifier, param_grid=params, cv=self.kfold, refit=True,
                                          n_jobs=-1,
                                          verbose=verbose,
                                          scoring=scoring_type)
             self.svm_grid.fit(X_train, y_train)
-        elif search_init == "geneticsearch":
+        elif initialisation == "geneticsearch":
             callbacks = [LogbookSaver(checkpoint_path="./logbook.pkl"), ProgressBar()]
             self.svm_grid = GASearchCV(estimator=self.deopt_classifier,
                                        cv=self.kfold,
@@ -333,6 +328,20 @@ class SVR_Model(BaseModel):
         self.optimised_model = self.svm_grid.best_estimator_
         return [self.optimised_model, self.svm_grid.best_score_]
 
+    def optimised(self, X_train: np.ndarray = None, y_train: np.ndarray = None, params: dict = None, splits: int = 5,
+                  kfold_shuffle: int = 1, scoring_type: str = 'explained_variance', verbose: int = 0
+                  ):
+
+        self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
+        self.optimised_model = SVR()
+        self.optimised_model.set_params(**params)
+
+        self.cv_score = cross_val_score(self.optimised_model, X_train, y_train, scoring=scoring_type, cv=self.kfold, n_jobs=-1)
+        self.best_score = np.mean(self.cv_score)
+
+        return [self.optimised_model, self.best_score]
+
+    
     def fit(self, X_train, y_train):
         print('Training ', self.model_type)
         self.optimised_model.fit(X_train, y_train)
@@ -424,7 +433,7 @@ class RandomForestEnsemble(BaseModel):
         self.deopt_classifier = None
         self.train_y_predicted = None
 
-    def gridsearch(self, X_train, y_train, search_init: str, params: dict = None, splits: int = 5,
+    def gridsearch(self, X_train, y_train, initialisation: str, params: dict = None, splits: int = 5,
                    kfold_shuffle: int = 1,
                    scoring_type: str = 'explained_variance', verbose: int = 0):
         print("GridSearching RandomForestRegressor...")
@@ -437,14 +446,14 @@ class RandomForestEnsemble(BaseModel):
         # If float, then min_samples_split is a percentage and ceil(min_samples_split * n_samples)
         # are the minimum number of samples for each split.
         # TODO Create kFold&Scoring PARAM choose
-        if search_init == 'gridsearch':
+        if initialisation == 'gridsearch':
             self.rf_grid = GridSearchCV(self.deopt_classifier, param_grid=params, cv=self.kfold, refit=True,
                                         n_jobs=-1,
                                         verbose=verbose,
                                         scoring=scoring_type)
             self.rf_grid.fit(X_train, y_train)
 
-        elif search_init == "geneticsearch":
+        elif initialisation == "geneticsearch":
             callbacks = [LogbookSaver(checkpoint_path="./logbook.pkl"), ProgressBar()]
             self.rf_grid = GASearchCV(estimator=self.deopt_classifier,
                                       cv=self.kfold,
@@ -466,6 +475,19 @@ class RandomForestEnsemble(BaseModel):
         self.cv_results = pd.DataFrame(self.rf_grid.cv_results_)
         self.optimised_model = self.rf_grid.best_estimator_
         return [self.optimised_model, self.rf_grid.best_score_]
+
+    def optimised(self, X_train: np.ndarray = None, y_train: np.ndarray = None, params: dict = None, splits: int = 5,
+                  kfold_shuffle: int = 1, scoring_type: str = 'explained_variance', verbose: int = 0
+                  ):
+
+        self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
+        self.optimised_model =  self.deopt_classifier = RandomForestRegressor(random_state=42)
+        self.optimised_model.set_params(**params)
+
+        self.cv_score = cross_val_score(self.optimised_model, X_train, y_train, scoring=scoring_type, cv=self.kfold, n_jobs=-1)
+        self.best_score = np.mean(self.cv_score)
+
+        return [self.optimised_model, self.best_score]
 
     def fit(self, X_train, y_train):
         print('Training ', self.model_type)
@@ -560,7 +582,7 @@ class CatBoostReg(BaseModel):
                                 'neg_mean_absolute_percentage_error': 'MAPE',
                                 'neg_median_absolute_error': 'MedianAbsoluteError'}
 
-    def gridsearch(self, X_train, y_train, search_init: str, params: dict = None, splits: int = 5,
+    def gridsearch(self, X_train, y_train, initialisation: str, params: dict = None, splits: int = 5,
                    kfold_shuffle: int = 1,
                    scoring_type: str = 'Poisson', verbose: int = 0):
         print('Gridsearching CatBoost Regressor...')
@@ -592,6 +614,30 @@ class CatBoostReg(BaseModel):
 
         self.best_score = max(self.cb_grid['cv_results']['test-' + str(scoring) + '-mean'])
         return (self.cb_grid['params'], self.best_score)
+
+    def optimised(self, X_train: np.ndarray = None, y_train: np.ndarray = None, params: dict = None, splits: int = 5,
+                  kfold_shuffle: int = 1, scoring_type: str = 'explained_variance', verbose: int = 0
+                  ):
+        if scoring_type in self.eval_metric_map:
+            scoring = self.eval_metric_map[scoring_type]
+        else:
+            print('Scoring method for CatBoost not found in mapping. Defaulting to "Poisson"')
+            scoring = 'Poisson'
+
+        self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
+        self.optimised_model = cb.CatBoostRegressor(loss_function='RMSE', random_seed=42, eval_metric=scoring
+                                                     # ,early_stopping_rounds=42
+                                                     , od_type="Iter"
+                                                     , od_wait=100
+                                                     )
+        self.optimised_model.set_params(**params)
+
+        self.cv_score = cross_val_score(self.optimised_model, X_train, y_train, scoring=scoring_type, cv=self.kfold, n_jobs=-1)
+        self.best_score = np.mean(self.cv_score)
+
+        return [self.optimised_model, self.best_score]
+
+
 
     def fit(self, X_train, y_train):
         print('Training ', self.model_type)
@@ -680,20 +726,20 @@ class SVRLinear(BaseModel):
         self.train_y_predicted = None
 
     def gridsearch(self, X_train, y_train, params: dict = None, splits: int = 5, kfold_shuffle: bool = True,
-                   scoring_type: str = 'explained_variance', verbose: int = 0, search_init: str = 'geneticsearch'):
+                   scoring_type: str = 'explained_variance', verbose: int = 0, initialisation: str = 'geneticsearch'):
         print("GridSearching SVRLinear...")
         self.deopt_classifier = LinearSVR(random_state=42)
         self.kfold = KFold(n_splits=splits, shuffle=kfold_shuffle, random_state=42)
         # TODO Better define params
 
         # TODO Create kFold&Scoring PARAM choose
-        if search_init == "gridsearch":
+        if initialisation == "gridsearch":
             self.svm_grid = GridSearchCV(self.deopt_classifier, param_grid=params, cv=self.kfold, refit=True,
                                          n_jobs=-1,
                                          verbose=verbose,
                                          scoring=scoring_type)
             self.svm_grid.fit(X_train, y_train)
-        elif search_init == "geneticsearch":
+        elif initialisation == "geneticsearch":
             callbacks = [LogbookSaver(checkpoint_path="./logbook.pkl"), ProgressBar()]
             self.svm_grid = GASearchCV(estimator=self.deopt_classifier,
                                        cv=self.kfold,
@@ -815,7 +861,8 @@ class Multi_SVR(BaseModel):
         self.deopt_classifier = None
         self.train_y_predicted = None
 
-    def gridsearch(self, X_train, y_train, params: dict = None, splits: int = 5, kfold_shuffle: bool = True,
+    def gridsearch(self, X_train: np.ndarray = None, y_train: np.ndarray = None, params: dict = None, splits: int = 5,
+                   kfold_shuffle: bool = True,
                    scoring_type: str = 'explained_variance'):
         print("GridSearching SVR...")
         self.deopt_classifier = MSVR(kernel='rbf', gamma=0.1, epsilon=0.001)
@@ -911,89 +958,88 @@ class Multi_SVR(BaseModel):
             plt.tight_layout()
             plt.savefig(plot_name, dpi=400)
 
-
-class Neural_Network(BaseModel):
-    model_type = 'NN_Reg'
-    model_category = 'Regression'
-
-    def __int__(self):
-        self.kfold = None
-        self.paramgrid = None
-        self.proba = None
-        self.optimised_model = None
-        self.val_y_predicted = None
-        self.test_y_predicted = None
-        self.stratifiedkfold = None
-        self.deopt_classifier = None
-        self.train_y_predicted = None
-
-    def make_regression_model(self, X_train, initializer='uniform', activation='relu', optimizer='SGD', loss='mse'):
-        tf.random.set_seed(42)
-        rows, cols = X_train.shape
-        training_data_samples = len(X_train)
-
-        input_layer = cols + 1
-        output_layer = 1
-        factor = 1
-        hidden_layer = (training_data_samples / factor) * (input_layer + output_layer)
-
-        model = Sequential([
-            Dense(input_layer, input_dim=input_layer, kernel_initializer=initializer, activation=activation),
-            # Input Layer
-            Dense(hidden_layer, kernel_initializer=initializer, activation=activation),  # Hidden Layer
-            Dense(output_layer, activation='linear')  # Output Layer
-        ])
-
-        model.compile(
-            loss=loss,
-            optimizer=optimizer,
-            metrics=['mse', 'mae']
-        )
-        self.model = model
-
-        return self.model
-
-    def gridsearch(self, X_train, y_train, search_init: str, params: dict = None, splits: int = 5,
-                   kfold_shuffle: int = 1,
-                   scoring_type: str = 'explained_variance', verbose: int = 0):
-
-        sgd = gradient_descent_v2.SGD()
-        reg_model = KerasRegressor(
-            build_fn=lambda: self.make_regression_model(X_train, initializer='uniform', activation='relu',
-                                                        optimizer=sgd, loss='mse'))
-        self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
-
-        if search_init == 'gridsearch':
-            self.nn_grid = GridSearchCV(reg_model, param_grid=params, cv=self.kfold, refit=True,
-                                        n_jobs=1,
-                                        verbose=verbose,
-                                        scoring=scoring_type)
-            self.nn_grid.fit(X_train, y_train)
-
-        self.optimised_model = self.nn_grid.best_estimator_
-        return [self.optimised_model, self.nn_grid.best_score_]
-
-    def fit(self, X_train, y_train):
-        print('Training ', self.model_type)
-        self.optimised_model.fit(X_train, y_train)
-        print('Completed Training')
-
-        return self.optimised_model
-
-    def predict(self, X_val):
-        print('Predicting unlabelled...')
-        self.val_y_predicted = self.optimised_model.predict(X_val)
-
-        return self.val_y_predicted
-
-    def predict_labelled(self, X_train, X_test):
-        print('Predicting labelled...')
-        self.train_y_predicted = self.optimised_model.predict(X_train)
-        self.test_y_predicted = self.optimised_model.predict(X_test)
-
-        return self.train_y_predicted, self.test_y_predicted
-
-    def predict_proba(self, X_val):
-        print('Proba prediction...')
-        self.proba = self.optimised_model.predict_proba(X_val)
-        return self.proba
+# class Neural_Network(BaseModel):
+#     model_type = 'NN_Reg'
+#     model_category = 'Regression'
+#
+#     def __int__(self):
+#         self.kfold = None
+#         self.paramgrid = None
+#         self.proba = None
+#         self.optimised_model = None
+#         self.val_y_predicted = None
+#         self.test_y_predicted = None
+#         self.stratifiedkfold = None
+#         self.deopt_classifier = None
+#         self.train_y_predicted = None
+#
+#     def make_regression_model(self, X_train, initializer='uniform', activation='relu', optimizer='SGD', loss='mse'):
+#         tf.random.set_seed(42)
+#         rows, cols = X_train.shape
+#         training_data_samples = len(X_train)
+#
+#         input_layer = cols + 1
+#         output_layer = 1
+#         factor = 1
+#         hidden_layer = (training_data_samples / factor) * (input_layer + output_layer)
+#
+#         model = Sequential([
+#             Dense(input_layer, input_dim=input_layer, kernel_initializer=initializer, activation=activation),
+#             # Input Layer
+#             Dense(hidden_layer, kernel_initializer=initializer, activation=activation),  # Hidden Layer
+#             Dense(output_layer, activation='linear')  # Output Layer
+#         ])
+#
+#         model.compile(
+#             loss=loss,
+#             optimizer=optimizer,
+#             metrics=['mse', 'mae']
+#         )
+#         self.model = model
+#
+#         return self.model
+#
+#     def gridsearch(self, X_train, y_train, search_init: str, params: dict = None, splits: int = 5,
+#                    kfold_shuffle: int = 1,
+#                    scoring_type: str = 'explained_variance', verbose: int = 0):
+#
+#         sgd = gradient_descent_v2.SGD()
+#         reg_model = KerasRegressor(
+#             build_fn=lambda: self.make_regression_model(X_train, initializer='uniform', activation='relu',
+#                                                         optimizer=sgd, loss='mse'))
+#         self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
+#
+#         if search_init == 'gridsearch':
+#             self.nn_grid = GridSearchCV(reg_model, param_grid=params, cv=self.kfold, refit=True,
+#                                         n_jobs=1,
+#                                         verbose=verbose,
+#                                         scoring=scoring_type)
+#             self.nn_grid.fit(X_train, y_train)
+#
+#         self.optimised_model = self.nn_grid.best_estimator_
+#         return [self.optimised_model, self.nn_grid.best_score_]
+#
+#     def fit(self, X_train, y_train):
+#         print('Training ', self.model_type)
+#         self.optimised_model.fit(X_train, y_train)
+#         print('Completed Training')
+#
+#         return self.optimised_model
+#
+#     def predict(self, X_val):
+#         print('Predicting unlabelled...')
+#         self.val_y_predicted = self.optimised_model.predict(X_val)
+#
+#         return self.val_y_predicted
+#
+#     def predict_labelled(self, X_train, X_test):
+#         print('Predicting labelled...')
+#         self.train_y_predicted = self.optimised_model.predict(X_train)
+#         self.test_y_predicted = self.optimised_model.predict(X_test)
+#
+#         return self.train_y_predicted, self.test_y_predicted
+#
+#     def predict_proba(self, X_val):
+#         print('Proba prediction...')
+#         self.proba = self.optimised_model.predict_proba(X_val)
+#         return self.proba

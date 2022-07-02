@@ -231,16 +231,17 @@ class Algorithm(object):
 
 
 
-    def run_algorithm(self, search_init: str='gridsearch',splits: int = 5, grid_params=None, skip_unlabelled_analysis: bool = False, verbose: int = 0,kfold_repeats: int =1 ):
+    def run_algorithm(self, initialisation: str= 'gridsearch', splits: int = 5, grid_params=None, skip_unlabelled_analysis: bool = False, verbose: int = 0, kfold_repeats: int =1):
         self.kfold_splits = splits
         if self.model_type == 'Regression':
-            self.regression_model(search_init,splits, grid_params, skip_unlabelled_analysis=skip_unlabelled_analysis, verbose=verbose, kfold_shuffle=kfold_repeats)
+            self.regression_model(initialisation, splits, grid_params, skip_unlabelled_analysis=skip_unlabelled_analysis, verbose=verbose, kfold_shuffle=kfold_repeats)
             self.regression = 1
         elif self.model_type == 'Classification':
             self.classification_model(splits, grid_params)
             self.classification = 1
 
-    def regression_model(self,search_init: str = 'gridsearch', splits: int = 5, grid_params=None, skip_unlabelled_analysis: bool = False,
+
+    def regression_model(self, initialisation: str = 'gridsearch', splits: int = 5, grid_params=None, skip_unlabelled_analysis: bool = False,
                          verbose: int = 0, kfold_shuffle: int = 1):
         if type(self.model_object) is list:
             self.committee_models = CommitteeRegressor(self.model_object, self.X_train, self.X_test, self.y_train,
@@ -250,7 +251,10 @@ class Algorithm(object):
                                                        scoring_type=self.scoring_type,
                                                        instances=self.n_instances,
                                                        query_strategy=max_std_sampling)
-            self.scores = self.committee_models.gridsearch_committee(search_init=search_init,grid_params=grid_params, verbose=verbose)
+            if initialisation == 'gridsearch':
+                self.scores = self.committee_models.gridsearch_committee(initialisation=initialisation, grid_params=grid_params, verbose=verbose)
+            elif initialisation == 'optimised':
+                self.scores = self.committee_models
             self.committee_models.fit_data()
             self.score_data = self.committee_models.score()
             self.selection_probas_val, *rest = self.committee_models.query(self.committee_models,
@@ -734,7 +738,7 @@ alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
                 MRMR_K_Value=25)
 
 #alg.analyse_data()
-alg.run_algorithm(search_init='gridsearch',splits=3, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=10, kfold_repeats=2)
+alg.run_algorithm(initialisation='gridsearch', splits=3, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=10, kfold_repeats=2)
 alg.compare_query_changes()
 alg.similairty_scoring(method='gower', threshold=0.8, n_instances=10)
 alg.output_data()

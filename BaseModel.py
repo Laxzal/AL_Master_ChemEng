@@ -6,6 +6,9 @@ class BaseModel(object):
     def gridsearch(self):
         pass
 
+    def optimised(self):
+        pass
+
     def fit(self):
         pass
 

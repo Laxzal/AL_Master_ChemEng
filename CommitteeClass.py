@@ -104,12 +104,8 @@ class CommitteeClassification(ABC):
         for learner_idx, learner in enumerate(self.learner_list):
             # score_values[:, :, learner_idx] \
             score_values[learner.model_type] = learner.gridsearch(X_train=self.X_training, y_train=self.y_training,
-                                                                  c_weight=self.c_weight,
-                                                                  catboost_weight=np.unique(self.y_training),
-                                                                  splits=self.splits,
-                                                                  scoring_type=self.scoring_type,
-                                                                  kfold_shuffle=self.kfold_shuffle,
-                                                                  parameters=grid_params[str(learner.model_type)])
+                                                                  splits=self.splits, kfold_shuffle=self.kfold_shuffle,
+                                                                  scoring_type=self.scoring_type)
         return score_values
 
     def fit_data(self, **fit_kwargs):
@@ -326,18 +322,22 @@ class CommitteeRegressor(ABC):
             except AttributeError:
                 raise NotFittedError('Not all estimators are fitted. Fit all estimators before using this method')
 
-        def gridsearch_committee(self, grid_params: dict = None, verbose: int = 0, search_init: str='gridsearch'):
+        def gridsearch_committee(self, grid_params: dict = None, verbose: int = 0, initialisation: str= 'gridsearch'):
             score_values = {}
             for learner_idx, learner in enumerate(self.learner_list):
                 score_values[learner.model_type] = learner.gridsearch(X_train=self.X_training, y_train=self.y_training,
-                                                                      search_init=search_init,
+                                                                      params=grid_params[str(learner.model_type)],
                                                                       splits=self.splits,
                                                                       kfold_shuffle=self.kfold_shuffle,
-                                                                      scoring_type=self.scoring_type,
-                                                                      params=grid_params[str(learner.model_type)],
-                                                                      verbose=verbose)
+                                                                      scoring_type=self.scoring_type)
 
             return score_values
+
+        def optimised_comittee(self, params: dict = None):
+            score_values = {}
+            for learner_idx, learner in enumerate(self.learner_list):
+                score_values[learner.model_type] = learner.optimised()
+
 
         def fit_data(self, **fit_kwargs):
 
