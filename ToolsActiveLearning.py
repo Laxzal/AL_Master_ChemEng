@@ -3,10 +3,6 @@ from typing import List, Union, Sequence
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-try:
-    import torch
-except:
-    pass
 
 def retrieverows(X_val, I: Union[int, List[int], np.ndarray]) -> Union[sp.csr_matrix, np.ndarray, pd.DataFrame]:
     if sp.issparse(X_val):
@@ -65,10 +61,5 @@ def data_vstack(blocks: Sequence):
     elif isinstance(blocks[0], list):
         return np.concatenate(blocks).tolist()
 
-    try:
-        if torch.is_tensor(blocks[0]):
-            return torch.cat(blocks)
-    except:
-        pass
 
     raise TypeError("%s datatype is not supported" % type(blocks[0]))

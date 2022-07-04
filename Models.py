@@ -16,12 +16,6 @@ from BaseModel import BaseModel
 from MSVR import MSVR
 
 
-# from sklearn_genetic.plots import plot_fitness_evolution, plot_search_space
-
-
-# from sklearn_genetic import GASearchCV
-# from sklearn_genetic.callbacks import LogbookSaver, ProgressBar
-
 
 class SvmModel(BaseModel):
     model_type = 'SVC'
@@ -300,28 +294,7 @@ class SVR_Model(BaseModel):
                                          verbose=verbose,
                                          scoring=scoring_type)
             self.svm_grid.fit(X_train, y_train)
-        elif initialisation == "geneticsearch":
-            callbacks = [LogbookSaver(checkpoint_path="./logbook.pkl"), ProgressBar()]
-            self.svm_grid = GASearchCV(estimator=self.deopt_classifier,
-                                       cv=self.kfold,
-                                       scoring=scoring_type,
-                                       generations=40,
-                                       elitism=True,
-                                       param_grid=params,
-                                       n_jobs=-1,
-                                       verbose=verbose,
-                                       keep_top_k=4,
-                                       crossover_probability=0.9,
-                                       mutation_probability=0.05,
-                                       criteria="max",
-                                       algorithm="eaMuCommaLambda"
-                                       )
-            self.svm_grid.fit(X_train, y_train, callbacks=callbacks)
-            print("Stats achieved in each generation: ", self.svm_grid.history)
-            print("Best k solutions: ", self.svm_grid.hof)
-            plt.close("all")
-            plot = plot_fitness_evolution(self.svm_grid, metric="fitness")
-            plt.show()
+
         # print("Best Estimator: \n{}\n".format(self.svm_grid.best_estimator_))
         # print("Best Parameters: \n{}\n".format(self.svm_grid.best_params_))
         # print("Best Test Score: \n{}\n".format(self.svm_grid.best_score_))
@@ -455,21 +428,7 @@ class RandomForestEnsemble(BaseModel):
                                         scoring=scoring_type)
             self.rf_grid.fit(X_train, y_train)
 
-        elif initialisation == "geneticsearch":
-            callbacks = [LogbookSaver(checkpoint_path="./logbook.pkl"), ProgressBar()]
-            self.rf_grid = GASearchCV(estimator=self.deopt_classifier,
-                                      cv=self.kfold,
-                                      scoring=scoring_type,
-                                      generations=35,
-                                      param_grid=params,
-                                      n_jobs=-1,
-                                      verbose=verbose,
-                                      keep_top_k=4)
-            self.rf_grid.fit(X_train, y_train, callbacks=callbacks)
-            print("Stats achieved in each generation: ", self.rf_grid.history)
-            print("Best k solutions: ", self.rf_grid.hof)
-            plot = plot_fitness_evolution(self.rf_grid, metric="fitness")
-            plt.show()
+
 
         print("Best Estimator: \n{}\n".format(self.rf_grid.best_estimator_))
         print("Best Parameters: \n{}\n".format(self.rf_grid.best_params_))
@@ -742,31 +701,6 @@ class SVRLinear(BaseModel):
                                          verbose=verbose,
                                          scoring=scoring_type)
             self.svm_grid.fit(X_train, y_train)
-        elif initialisation == "geneticsearch":
-            callbacks = [LogbookSaver(checkpoint_path="./logbook.pkl"), ProgressBar()]
-            self.svm_grid = GASearchCV(estimator=self.deopt_classifier,
-                                       cv=self.kfold,
-                                       scoring=scoring_type,
-                                       # population_size=10,
-                                       generations=35,
-                                       # tournament_size=3,
-                                       # elitism=True,
-                                       param_grid=params,
-                                       n_jobs=-1,
-                                       verbose=verbose,
-                                       keep_top_k=4,
-                                       # crossover_probability=0.9,
-                                       # mutation_probability=0.05,
-                                       # criteria="max",
-                                       # algorithm="eaMuCommaLambda",
-                                       refit=True
-                                       )
-            self.svm_grid.fit(X_train, y_train, callbacks=callbacks)
-            print("Stats achieved in each generation: ", self.svm_grid.history)
-            print("Best k solutions: ", self.svm_grid.hof)
-            plt.close("all")
-            plot = plot_fitness_evolution(self.svm_grid, metric="fitness")
-            plt.show()
 
         # print("Best Estimator: \n{}\n".format(self.svm_grid.best_estimator_))
         print("Best Parameters: \n{}\n".format(self.svm_grid.best_params_))
