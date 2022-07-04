@@ -816,7 +816,8 @@ alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
 
                                            ],
                 MRMR_K_Value=25
-                ,post_run=True)
+                ,post_run=True,
+                run_type='Random')
 
 #alg.analyse_data()
 alg.run_algorithm(initialisation='optimised', splits=3, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=10, kfold_repeats=2,
