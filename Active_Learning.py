@@ -27,13 +27,13 @@ from Cluster import KMeans_Cluster, HDBScan
 from CommitteeClass import CommitteeRegressor, CommitteeClassification
 from DataLoad import Data_Load_Split
 from DiversitySampling_Clustering import DiversitySampling
-from Models import SvmModel, RfModel, CBModel, SVR_Model, RandomForestEnsemble, CatBoostReg, SVRLinear, Neural_Network
+from Models import SvmModel, RfModel, CBModel, SVR_Model, RandomForestEnsemble, CatBoostReg, SVRLinear#, Neural_Network
 from PreProcess import MinMaxScaling, Standardisation
 from QueriesCommittee import max_disagreement_sampling, max_std_sampling
 from SelectionFunctions import SelectionFunction
 from TrainModel import TrainModel
 from confusion_matrix_custom import make_confusion_matrix
-
+from build_al_data_file import ALDataBuild
 from mrmr_algorithm import MRMR
 
 """'
@@ -112,13 +112,18 @@ class Algorithm(object):
                  limit: int = -1, perc_uncertain: float = 0.1, n_instances: Union[int, str] = 'Full',
                  split_ratio: float = 0.2,
                  column_removal_experiment: list=None,
-                 MRMR_K_Value: int=10
-                 ):
+                 MRMR_K_Value: int=10,
+                 post_run: bool = False,
+                 run_type: Optional[str]=None):
+
+        assert perc_uncertain <= 1
+        assert model_type in ['Classification', 'Regression']
+        assert run_type in [None, 'AL','Random'], 'Choices are None, AL and Random'
+
         self.regression = None
         self.similarity_score = None
         self.selection_probas_val = None
-        assert perc_uncertain <= 1
-        assert model_type in ['Classification', 'Regression']
+
         self.today_date = datetime.today().strftime('%Y%m%d')
         self.today_date_time = datetime.today().strftime('%Y%m%d_%H%M_incomplete')
         self.time = datetime.today().strftime('%H%M')
@@ -143,6 +148,8 @@ class Algorithm(object):
         self.column_removal_experiment=column_removal_experiment
         self.uuid = shortuuid.ShortUUID().random(length=10).upper()
         self.K = MRMR_K_Value
+        self.post_run = post_run
+        self.run_type = None
         #######New Data - from self.create_data()/self.normalise_data()
         self.X_val = None
         self.y_train = None
@@ -172,11 +179,95 @@ class Algorithm(object):
             print("Directory ", dirName, " already exists")
 
     def create_data(self):
+        '''
+        The create data function will do various things. Firstly, it will run the unlabelled data function that creates
+        the unlabelled data file in the correct format.
+
+        Then, Data Load Split class will be instantiated. The calling of this class will read in the initial results of
+        the experiments (prior to any labelling of unlabelled data), and set up the X and y arrays in the format req.
+        for the algorithms.
+        The Data Load Split also contains an analysis function that will produce graphs of the X and y data. It will also
+        determine whether the y data is gaussian or not.
+
+        :return:
+        '''
 
         # Pull in unlabelled Data
 
         self.X_val, self.columns_x_val = unlabelled_data(self.file,
                                                          method='fillna', column_removal_experiment=self.column_removal_experiment)  # TODO need to rename
+
+
+        # uncertain_count = math.ceil(len(self.X_val) * self.perc_uncertain)
+
+        # Run Split
+        #DLS onlly accurate up to 1000.0 size, need to filter
+
+        data_load_split = Data_Load_Split("Results_Complete.csv", hide_component=self.hide, alg_categ=self.model_type,
+                                          split_ratio=self.split_ratio,
+                                          shuffle_data=True, filter_target=True, target='Z-Average (d.nm)',
+                                          smaller_than=1000.0, column_removal_experiment=self.column_removal_experiment)
+        self.converted_columns = data_load_split.columns_converted
+        self.target_labels = data_load_split.class_names_str
+
+
+
+
+        self.X_train, self.X_test, self.y_train, self.y_test = data_load_split.split_train_test()
+
+        if self.post_run==True:
+            more_data = ALDataBuild(folder_dls=r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Input',
+                                    folder_formulations=r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output')
+
+            more_data.collect_csv()
+            more_data.clean_dls_data()
+            more_data.filter_out_D_iteration()
+            more_data.z_scoring(threshold=1.0)
+            more_data.collect_formulations()
+            more_data.merge_dls_data()
+
+            if self.run_type == 'AL':
+                self.X_val, self.columns_x_val = more_data.remove_AL_from_unlabelled(X_val=self.X_val, X_val_columns_names=self.columns_x_val)
+                more_data.return_AL_data()
+                self.X_train, self.y_train = more_data.add_AL_to_train(X_train=self.X_train,
+                                                                           y_train=self.y_train)
+
+                #This updates the main X and y arrays ion the Data Load Split so that when new data is added, the analysis
+                #can be done on ALSO the new data
+                data_load_split.update_x_y_data(additional_x=more_data.X_train_AL,additional_y=more_data.y_train_AL)
+
+            elif self.run_type == 'Random':
+                self.X_val, self.columns_x_val = more_data.remove_random_from_unlabelled(X_val=self.X_val, X_val_columns_names=self.columns_x_val)
+                more_data.return_random_data()
+                self.X_train, self.y_train = more_data.add_random_to_train(X_train=self.X_train,
+                                                                           y_train=self.y_train)
+
+
+                data_load_split.update_x_y_data(additional_x=more_data.X_train_random, additional_y=more_data.y_train_random)
+            elif self.run_type is None:
+                pass
+
+
+
+
+
+
+        mrmr = MRMR(data_load_split.X, data_load_split.y, self.columns_x_val, K=self.K)
+        self.selected, self.not_selected = mrmr.computing_correlations()
+
+        self.gaussian_result = data_load_split.analyse_data(save_path=self.save_path, column_names=self.columns_x_val,
+                                                            plot=False)
+
+        ### Log Transform y target
+        #TODO Implement better
+
+        if self.gaussian_result == False:
+            self.y_train = np.log(self.y_train)
+            self.y_test = np.log(self.y_test)
+        else:
+            pass
+        ###
+
         random.seed(42) #This shhould ensure shuffling is always the same
         if self.limit > 0:
             shuffle(self.X_val)
@@ -192,34 +283,12 @@ class Algorithm(object):
             elif self.n_instances in ['Half', 'half']:
                 self.n_instances = round(len(self.X_val) / 2)
 
-        # uncertain_count = math.ceil(len(self.X_val) * self.perc_uncertain)
-
-        # Run Split
-        #DLS onlly accurate up to 1000.0 size, need to filter
-
-        data_load_split = Data_Load_Split("Results_Complete.csv", hide_component=self.hide, alg_categ=self.model_type,
-                                          split_ratio=self.split_ratio,
-                                          shuffle_data=True, filter_target=True, target='Z-Average (d.nm)',
-                                          smaller_than=1000.0, column_removal_experiment=self.column_removal_experiment)
-        self.converted_columns = data_load_split.columns_converted
-        self.target_labels = data_load_split.class_names_str
-
-        self.gaussian_result = data_load_split.analyse_data(save_path=self.save_path, column_names=self.columns_x_val, plot = False)
-        mrmr = MRMR(data_load_split.X, data_load_split.y, self.columns_x_val, K=self.K)
-        self.selected, self.not_selected = mrmr.computing_correlations()
-
-        self.X_train, self.X_test, self.y_train, self.y_test = data_load_split.split_train_test()
 
 
-        ### Log Transform y target
-        #TODO Implement better
 
-        if self.gaussian_result == False:
-            self.y_train = np.log(self.y_train)
-            self.y_test = np.log(self.y_test)
-        else:
-            pass
-        ###
+
+
+
         return self.X_train, self.X_test, self.y_train, self.y_test
         # normalise data - Increased accuracy from 50% to 89%
 
@@ -254,7 +323,7 @@ class Algorithm(object):
             if initialisation == 'gridsearch':
                 self.scores = self.committee_models.gridsearch_committee(initialisation=initialisation, grid_params=grid_params, verbose=verbose)
             elif initialisation == 'optimised':
-                self.scores = self.committee_models
+                self.scores = self.committee_models.optimised_comittee(params=grid_params)
             self.committee_models.fit_data()
             self.score_data = self.committee_models.score()
             self.selection_probas_val, *rest = self.committee_models.query(self.committee_models,
@@ -624,21 +693,31 @@ CBModel = {
     #    'border_count': [32, 5, 10, 20, 50, 100, 200]
 }
 # https://www.vebuso.com/2020/03/svm-hyperparameter-tuning-using-gridsearchcv/
-SVM_Reg = {'C': [0.0001,0.01,0.1,1,5,10,50, 100, 200,500, 1000],  # np.logspace(-6, 3,10), #*
-           'gamma': np.logspace(-4, 2, 7),  # Kernel coefficient for rbf, poly & sig
-           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-           'kernel': [  'rbf',
-               #'poly',
-               'sigmoid',
-               'linear'  # *
-           ]
+#SVM_Reg = {'C': [0.0001,0.01,0.1,1,5,10,50, 100, 200,500, 1000],  # np.logspace(-6, 3,10), #*
+#           'gamma': np.logspace(-4, 2, 7),  # Kernel coefficient for rbf, poly & sig
+#           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
+#           'kernel': [  'rbf',
+#               #'poly',
+#               'sigmoid',
+#               'linear'  # *
+#           ]
           #  ,'coef0': [0,0.0001,0.001,0.01,0.1, 1,10,20,100] #Independent term for poly & sig
            #, 'degree': [1,2, 3, 4] #Poly
     #, 'epsilon': [0,0.001,0.01,0.05,0.1, 0.5, 1, 5, 10, 50, 100]
   #  , 'tol': np.logspace(-4, 1, 5)
-           }
+#           }
 
-SVM_Reg['gamma'] = np.append(SVM_Reg['gamma'],['auto','scale'])
+#SVM_Reg['gamma'] = np.append(SVM_Reg['gamma'],['auto','scale'])
+
+
+SVM_Reg = {'C':500, 'coef0':0, 'epsilon':0, 'gamma':'auto', 'tol':0.5623413251903491}
+
+
+
+
+
+
+
 
 RFE_Reg = {'n_estimators': [int(x) for x in np.linspace(start=200,
                                                         stop=1000,
@@ -650,19 +729,20 @@ RFE_Reg = {'n_estimators': [int(x) for x in np.linspace(start=200,
            'bootstrap': [False, True],
            # 'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)]
            }
+RFE_Reg = {'n_estimators': 1000, 'max_features':'sqrt'}
+
+
 CatBoost_Reg = {'learning_rate': [0.01,0.03, 0.1,1],
                 'depth': [2,4, 6]  # DEFAULT is 6. Decrease value to prevent overfitting
     , 'l2_leaf_reg': [10,15,30,50] # Increase the value to prevent overfitting DEFAULT is 3
                 }
-
+CatBoost_Reg = {'depth':2,'l2_leaf_reg':15,'learning_rate':0.1}
 SVRLinear = {'C': [1,70,100,200,300,1000],
             # 'tol':  np.logspace(-20, 0,21),
             # 'epsilon': [ 0,0.0001,0.1, 0.2, 0.5, 1, 5, 10, 50, 70],
             # 'loss': ['epsilon_insensitive', 'squared_epsilon_insensitive'],
             # 'fit_intercept': [True, False],
              'max_iter': [100000, 1000000,10000000]
-
-
 }
 
 
@@ -735,12 +815,15 @@ alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
                                             #'component_3_vol_stock'
 
                                            ],
-                MRMR_K_Value=25)
+                MRMR_K_Value=25
+                ,post_run=True)
 
 #alg.analyse_data()
-alg.run_algorithm(initialisation='gridsearch', splits=3, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=10, kfold_repeats=2)
+alg.run_algorithm(initialisation='optimised', splits=3, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=10, kfold_repeats=2,
+                  #post_run = True
+                  )
 alg.compare_query_changes()
-alg.similairty_scoring(method='gower', threshold=0.8, n_instances=10)
+alg.similairty_scoring(method='gower', threshold=0.2, n_instances=10)
 alg.output_data()
 alg.random_unlabelled(n_instances=10)
 alg.master_file()

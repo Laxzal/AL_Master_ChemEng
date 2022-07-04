@@ -15,7 +15,6 @@ class ALDataBuild:
         self.folder_formulation = folder_formulations
         self.files_formulations = []
 
-
         self.random_dataframe = pd.DataFrame()
         self.output_dataframe = pd.DataFrame()
 
@@ -164,6 +163,11 @@ class ALDataBuild:
                                                       'PdI Width (d.nm)': float(temp_df_mean_pw)}, ignore_index=True)
 
         print(z_score_filter_df)
+        dlsdata_average['Sample Name'] = dlsdata_average['Sample Name'].str.replace("(?<!\_)(\D+\d)", "",
+                                                                                    regex=True)
+
+        dlsdata_average['Sample Name'] = pd.to_numeric(dlsdata_average['Sample Name'])
+
         self.dlsdata_average = dlsdata_average
 
     def collect_formulations(self):
@@ -172,12 +176,14 @@ class ALDataBuild:
             for file in filenames:
                 if file.endswith(('.xlsx', '.XLSX')):
                     self.files_formulations.append(os.path.join(dirpath, file))
-
-
+        ###Need to remove 'cv_results' as these are large files and grinds the for loop to a halt
+        self.files_formulations[:] = [d for d in self.files_formulations if 'cv_results' not in d]
         for f in self.files_formulations:
             if f.endswith(('.xlsx', '.XLSX')):
+
+                print(f)
                 if 'random' in f:
-                    print(str(f))
+                    # print(str(f))
                     tdf_random = pd.read_excel(f)
                     self.random_dataframe = pd.concat([self.random_dataframe, tdf_random], ignore_index=True)
                     # self.dls_data = self.dls_data.append(dw, ignore_index=True)
@@ -186,27 +192,214 @@ class ALDataBuild:
                     tdf_output = pd.read_excel(f, skiprows=np.arange(13))
                     self.output_dataframe = pd.concat([self.output_dataframe, tdf_output], ignore_index=True)
                     # header=0)
-                    print(tdf_output)
+                    # print(tdf_output)
+
+        self.output_dataframe = self.output_dataframe[['original_index',
+                                                       'Concentration_1 (mM)',
+                                                       'Ratio_1',
+                                                       'Overall_Concentration_2',
+                                                       'Ratio_2',
+                                                       'Overall_Concentration_3',
+                                                       'Ratio_3',
+                                                       'Concentration_4',
+                                                       'Ratio_4',
+                                                       'Final_Vol',
+                                                       'Lipid_Vol_Pcnt',
+                                                       'Dispense_Speed_uls',
+                                                       'component_1_vol_stock',
+                                                       'component_2_vol_conc',
+                                                       'component_2_vol_stock',
+                                                       'component_3_vol_conc',
+                                                       'component_3_vol_stock',
+                                                       'ethanol_dil',
+                                                       'mw_cp_1',
+                                                       'heavy_atom_count_cp_1',
+                                                       'single_bond_cp_1',
+                                                       'double_bond_cp_1',
+                                                       'mw_cp_2',
+                                                       'h_bond_donor_count_cp_2',
+                                                       'h_bond_acceptor_count_cp_2',
+                                                       'heavy_atom_count_cp_2',
+                                                       'ssr_cp_2',
+                                                       'single_bond_cp_2',
+                                                       'double_bond_cp_2',
+                                                       'mw_cp_3',
+                                                       'h_bond_donor_count_cp_3',
+                                                       'h_bond_acceptor_count_cp_3',
+                                                       'heavy_atom_count_cp_3',
+                                                       'ssr_cp_3',
+                                                       'single_bond_cp_3',
+                                                       'double_bond_cp_3',
+                                                       'sample_scoring']]
+
+
+        self.output_dataframe.dropna(inplace=True)
+        self.random_dataframe.dropna(how='all', inplace=True)
+        self.random_dataframe.drop(columns=['original_index'], inplace=True)
+
+        # Random is missing this column name for some reason
+        self.random_dataframe.rename(columns={'Unnamed: 0': 'original_index'}, inplace=True)
 
     def merge_dls_data(self):
+        #self.dlsdata_average['Sample Name'] = self.dlsdata_average['Sample Name'].str.strip()
+        #self.output_dataframe['original_index'] = self.output_dataframe['original_index'].str.strip()
 
-        results_comp_df = pd.merge(self.output_dataframe, self.dlsdata_average,
-                                   how="outer",
-                                   left_on="original_index",
-                                   right_on="Sample Name").reset_index(drop=True)
+        self.merged_dataframe_AL = pd.merge(self.output_dataframe, self.dlsdata_average,
+                                            how="inner",
+                                            left_on="original_index",
+                                            right_on="Sample Name").reset_index(drop=True)
+
+        print(self.merged_dataframe_AL)
+
+        self.merged_dataframe_random = pd.merge(self.random_dataframe, self.dlsdata_average,
+                                    how="inner",
+                                    left_on="original_index",
+                                    right_on="Sample Name").reset_index(drop=True)
+
+        ###Don't know why this is happpening but quick fix
+        self.merged_dataframe_AL['ethanol_dil'] = 0.00
+        self.merged_dataframe_random['ethanol_dil'] = 0.00
+        print(self.merged_dataframe_random)
+
+    def remove_AL_from_unlabelled(self, X_val, X_val_columns_names):
+        X_val = pd.DataFrame(X_val, columns=X_val_columns_names)
+        temporary_AL_dataframe = self.merged_dataframe_AL.drop(columns=['original_index', 'sample_scoring',
+                                                                                'Sample Name','Z-Average (d.nm)',
+                                                                                'PdI','PdI Width (d.nm)'])
+
+        merge_dfs = X_val.merge(temporary_AL_dataframe.drop_duplicates(), on=list(temporary_AL_dataframe),
+                                how='left', indicator=True)
+        merge_dfs = merge_dfs[merge_dfs['_merge'] == 'left_only']
+        merge_dfs.drop(columns=['_merge'], inplace=True)
+        X_val = merge_dfs.to_numpy()
+
+        return X_val, X_val_columns_names
 
 
+    def return_AL_data(self):
+        pre_x_train = self.merged_dataframe_AL.drop(columns=['original_index', 'sample_scoring',
+                                                                                'Sample Name','Z-Average (d.nm)',
+                                                                                'PdI','PdI Width (d.nm)'])
+
+        self.X_train_AL = pre_x_train.to_numpy()
+
+        pre_y_train = self.merged_dataframe_AL[['Z-Average (d.nm)']]
+
+        self.y_train_AL = pre_y_train.to_numpy().reshape(-1)
+
+
+    def add_AL_to_train(self, X_train, y_train):
+        X_train = np.vstack((X_train, self.X_train_AL))
+        y_train = np.hstack((y_train, self.y_train_AL)).astype(float)
+
+        return X_train, y_train
+    
+    def remove_random_from_unlabelled(self, X_val, X_val_columns_names):
+        X_val = pd.DataFrame(X_val, columns=X_val_columns_names)
+        temporary_random_dataframe = self.merged_dataframe_random.drop(columns=['original_index', 'sample_scoring',
+                                                                                'Sample Name','Z-Average (d.nm)',
+                                                                                'PdI','PdI Width (d.nm)'])
+
+        merge_dfs = X_val.merge(temporary_random_dataframe.drop_duplicates(), on=list(temporary_random_dataframe),
+                                how='left', indicator=True)
+        merge_dfs = merge_dfs[merge_dfs['_merge'] == 'left_only']
+        merge_dfs.drop(columns=['_merge'], inplace=True)
+        X_val = merge_dfs.to_numpy()
+
+        return X_val, X_val_columns_names
+    
+    
+
+    def return_random_data(self):
+        pre_x_train = self.merged_dataframe_random.drop(columns=['original_index', 'sample_scoring',
+                                                                                'Sample Name','Z-Average (d.nm)',
+                                                                                'PdI','PdI Width (d.nm)'])
+
+        self.X_train_random = pre_x_train.to_numpy()
+
+        pre_y_train = self.merged_dataframe_random[['Z-Average (d.nm)']]
+
+        self.y_train_random = pre_y_train.to_numpy()
+
+
+    def add_random_to_train(self, X_train, y_train):
+        X_train = np.vstack((X_train, self.X_train_random))
+        y_train = np.hstack((y_train, self.y_train_random))
+
+        return X_train, y_train
 
 
 
 ##Test
-test = ALDataBuild(
-    folder_dls=r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Input',
-    folder_formulations=r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output')
 
-test.collect_csv()
-test.clean_dls_data()
-test.filter_out_D_iteration()
-test.z_scoring(threshold=1.0)
-test.collect_formulations()
-test.merge_dls_data()
+
+#X_Val Function
+# def unlabelled_data(file, method, column_removal_experiment: list=None):
+#     ul_df = pd.read_csv(file)
+#     column_drop = ['Duplicate_Check',
+#                    'PdI Width (d.nm)',
+#                    'PdI',
+#                    'Z-Average (d.nm)',
+#                    'ES_Aggregation']
+#
+#
+#     ul_df = ul_df.drop(columns=column_drop)
+#     #ul_df = ul_df.drop(columns=useless_clm_drop)
+#
+#     #Remove a column(s)
+#     if column_removal_experiment is not None:
+#         ul_df.drop(columns=column_removal_experiment, inplace=True)
+#
+#
+#     ul_df.replace(np.nan, 'None', inplace=True)
+#     if "Component_1" and "Component_2" and "Component_3" in ul_df.columns:
+#         ul_df = pd.get_dummies(ul_df, columns=["Component_1", "Component_2", "Component_3"],
+#                                prefix="", prefix_sep="")
+#         # if method=='fillna':    ul_df['Component_3'] = ul_df['Component_3'].apply(lambda x: None if pd.isnull(x) else x) #TODO This should be transformed into an IF function, thus when the function for unlabelled is filled with a parameter, then activates
+#
+#         ul_df = ul_df.groupby(level=0, axis=1, sort=False).sum()
+#
+#     # print(ul_df.isna().any())
+#     X_val = ul_df.to_numpy()
+#     columns_x_val = ul_df.columns
+#     return X_val, columns_x_val
+#
+#
+# column_removal_experiment = ['xlogp_cp_1', 'xlogp_cp_2', 'xlogp_cp_3',
+#                              'aromatic_bond_cp_2', 'complexity_cp_3',
+#                              'complexity_cp_2', 'complexity_cp_1', 'Final_Concentration',
+#                              'final_lipid_volume', 'component_1_vol', 'component_2_vol',
+#                              'component_3_vol', 'component_4_vol', 'component_1_vol_conc',
+#                              'tpsa_cp_3', 'tpsa_cp_2',
+#                              # 'heavy_atom_count_cp_1','heavy_atom_count_cp_2','heavy_atom_count_cp_3',
+#                              # 'single_bond_cp_1','double_bond_cp_1',
+#                              # 'single_bond_cp_2','double_bond_cp_2',
+#                              # 'single_bond_cp_3','double_bond_cp_3',
+#                              # 'h_bond_donor_count_cp_2','h_bond_acceptor_count_cp_2',
+#                              # 'h_bond_donor_count_cp_3','h_bond_acceptor_count_cp_3',
+#                              # 'ssr_cp_2','ssr_cp_3',
+#                              'Req_Weight_1', 'Ethanol_1',
+#                              'Req_Weight_2', 'Ethanol_2',
+#                              'Req_Weight_3',
+#                              'Req_Weight_4', 'Ethanol_4'
+#                              # 'ethanol_dil',
+#                              # 'component_1_vol_stock',
+#                              # 'component_2_vol_stock',
+#                              # 'component_3_vol_stock'
+#
+#                              ]
+# X_val, columns_x_val = unlabelled_data(file = r"/Users/calvin/Documents/OneDrive/Documents/2022/Data_Output/unlabelled_data_full.csv",
+#                                                  method='fillna',
+#                                                  column_removal_experiment=column_removal_experiment)  # TODO need to rename
+#
+# test = ALDataBuild(
+#     folder_dls=r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Input',
+#     folder_formulations=r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output')
+#
+# test.collect_csv()
+# test.clean_dls_data()
+# test.filter_out_D_iteration()
+# test.z_scoring(threshold=1.0)
+# test.collect_formulations()
+# test.merge_dls_data()
+# test.remove_from_unlabelled(X_val = X_val, X_val_columns_names=columns_x_val)

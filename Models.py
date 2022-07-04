@@ -273,6 +273,7 @@ class SVR_Model(BaseModel):
     model_category = 'Regression'
 
     def __init__(self):
+        self.cv_results = None
         self.kfold = None
         self.paramgrid = None
         self.proba = None
@@ -423,6 +424,7 @@ class RandomForestEnsemble(BaseModel):
     model_category = 'Regression'
 
     def __init__(self):
+        self.cv_results = None
         self.kfold = None
         self.paramgrid = None
         self.proba = None
@@ -565,6 +567,7 @@ class CatBoostReg(BaseModel):
     model_category = 'Regression'
 
     def __init__(self):
+        self.cv_results = None
         self.kfold = None
         self.paramgrid = None
         self.proba = None

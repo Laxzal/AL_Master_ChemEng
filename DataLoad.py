@@ -355,3 +355,11 @@ class Data_Load_Split(object):
                 y_test = np.hstack([y_test, y_temp])
 
         return X_train, X_test, y_train, y_test
+
+
+    def update_x_y_data(self, additional_x, additional_y):
+
+        self.X = np.vstack((self.X,additional_x))
+        self.y = np.hstack((self.y, additional_y)).astype(float)
+
+        return self.X, self.y

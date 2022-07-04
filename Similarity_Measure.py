@@ -26,7 +26,7 @@ class Similarity():
                     # https://medium.com/analytics-vidhya/gowers-distance-899f9c4bd553
                     # The lower the value, the more similar it is. Therefore, 1 - gower makes it
                     # The lower the value the less similar it is.
-                    similarity = 1 - gower.gower_matrix(self.points,data, cat_features=converted_columns)
+                    similarity = 1 - gower.gower_matrix(self.points,data, cat_features=converted_columns).min(axis=0)
 
                     if similarity <= threshold:
                         self.points = np.append(self.points, data, axis=0)
