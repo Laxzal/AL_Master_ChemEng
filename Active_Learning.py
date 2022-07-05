@@ -13,6 +13,7 @@ import math
 import os
 import platform
 import random
+import re
 from datetime import datetime
 from random import shuffle
 from typing import Callable, Union, Optional
@@ -149,7 +150,7 @@ class Algorithm(object):
         self.uuid = shortuuid.ShortUUID().random(length=10).upper()
         self.K = MRMR_K_Value
         self.post_run = post_run
-        self.run_type = None
+        self.run_type = run_type
         #######New Data - from self.create_data()/self.normalise_data()
         self.X_val = None
         self.y_train = None
@@ -167,17 +168,53 @@ class Algorithm(object):
         self.normalise_data()
 
     def create_save_folder(self):
-        dirName = str(self.uuid) +'_'+ str(self.today_date_time)
 
-        try:
-            # Create Directory
-            save_folder = os.path.join(self.save_path, dirName)
-            os.mkdir(save_folder)
-            print("Directory ", dirName, " Created ")
-            self.save_path = save_folder
-        except FileExistsError:
-            print("Directory ", dirName, " already exists")
+        if self.post_run == False:
+            dirName = str(self.uuid) +'_'+ str(self.today_date_time)
 
+            try:
+                # Create Directory
+                save_folder = os.path.join(self.save_path, dirName)
+                os.mkdir(save_folder)
+                print("Directory ", dirName, " Created ")
+                self.save_path = save_folder
+            except FileExistsError:
+                print("Directory ", dirName, " already exists")
+        elif self.post_run == True:
+            if self.run_type == 'AL':
+                al_folder = 'AL_Output'
+                list_of_folders = [subdir for root, subdir,rest in os.walk(save_folder)]
+                list_of_folders =list(filter(None, list_of_folders))
+
+                string = ''.join(str(folder) for folder in list_of_folders)
+                count_of_iter = len(re.findall(r"(?<=_)(?:complete_iteration_\d+)", string))
+
+
+                dirName = str(self.uuid) + '_' + str(self.today_date_time)+str("_iteration_")+str(count_of_iter+1)
+
+                try:
+                    self.save_folder = os.path.join(save_folder,dirName)
+                    os.mkdir(self.save_folder)
+                    print("Directory ", dirName, " Created")
+                except FileExistsError:
+                    print("Directory ", dirName, " already exists")
+            elif self.run_type == 'Random':
+                al_folder = 'Random_Output'
+                save_folder = os.path.join(self.save_path,al_folder)
+                list_of_folders = [subdir for root, subdir,rest in os.walk(save_folder)]
+                list_of_folders =list(filter(None, list_of_folders))
+
+                string = ''.join(str(folder) for folder in list_of_folders)
+                count_of_iter = len(re.findall(r"(?<=_)(?:complete_iteration_\d+)", string))
+
+
+                dirName = str(self.uuid) + '_' + str(self.today_date_time)+str("_iteration_")+str(count_of_iter+1)
+                try:
+                    self.save_folder = os.path.join(save_folder,dirName)
+                    os.mkdir(self.save_folder)
+                    print("Directory ", dirName, " Created")
+                except FileExistsError:
+                    print("Directory ", dirName, " already exists")
     def create_data(self):
         '''
         The create data function will do various things. Firstly, it will run the unlabelled data function that creates

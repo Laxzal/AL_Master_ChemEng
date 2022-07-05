@@ -271,6 +271,7 @@ class ALDataBuild:
                                 how='left', indicator=True)
         merge_dfs = merge_dfs[merge_dfs['_merge'] == 'left_only']
         merge_dfs.drop(columns=['_merge'], inplace=True)
+        print("No. of removed unlabelled formulations: ", X_val.shape[0] - merge_dfs.shape[0])
         X_val = merge_dfs.to_numpy()
 
         return X_val, X_val_columns_names
@@ -296,7 +297,12 @@ class ALDataBuild:
     
     def remove_random_from_unlabelled(self, X_val, X_val_columns_names):
         X_val = pd.DataFrame(X_val, columns=X_val_columns_names)
-        temporary_random_dataframe = self.merged_dataframe_random.drop(columns=['original_index', 'sample_scoring',
+        if 'sample_scoring' in self.merged_dataframe_random.columns:
+            temporary_random_dataframe = self.merged_dataframe_random.drop(columns=['original_index', 'sample_scoring',
+                                                                                'Sample Name','Z-Average (d.nm)',
+                                                                                'PdI','PdI Width (d.nm)'])
+        else:
+            temporary_random_dataframe = self.merged_dataframe_random.drop(columns=['original_index',
                                                                                 'Sample Name','Z-Average (d.nm)',
                                                                                 'PdI','PdI Width (d.nm)'])
 
@@ -311,20 +317,26 @@ class ALDataBuild:
     
 
     def return_random_data(self):
-        pre_x_train = self.merged_dataframe_random.drop(columns=['original_index', 'sample_scoring',
-                                                                                'Sample Name','Z-Average (d.nm)',
-                                                                                'PdI','PdI Width (d.nm)'])
+        if 'sample_scoring' in self.merged_dataframe_random.columns:
+            pre_x_train = self.merged_dataframe_random.drop(columns=['original_index', 'sample_scoring',
+                                                                                    'Sample Name', 'Z-Average (d.nm)',
+                                                                                    'PdI', 'PdI Width (d.nm)'])
+        else:
+            pre_x_train = self.merged_dataframe_random.drop(columns=['original_index',
+                                                                                    'Sample Name', 'Z-Average (d.nm)',
+                                                                                    'PdI', 'PdI Width (d.nm)'])
+
 
         self.X_train_random = pre_x_train.to_numpy()
 
         pre_y_train = self.merged_dataframe_random[['Z-Average (d.nm)']]
 
-        self.y_train_random = pre_y_train.to_numpy()
+        self.y_train_random = pre_y_train.to_numpy().reshape(-1)
 
 
     def add_random_to_train(self, X_train, y_train):
         X_train = np.vstack((X_train, self.X_train_random))
-        y_train = np.hstack((y_train, self.y_train_random))
+        y_train = np.hstack((y_train, self.y_train_random)).astype(float)
 
         return X_train, y_train
 
