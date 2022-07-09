@@ -7,7 +7,7 @@ from datetime import datetime
 
 # import lime.lime_tabular
 import pandas as pd
-# import shap
+import shap
 from matplotlib import pyplot as plt
 # from shapash import SmartExplainer
 

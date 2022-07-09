@@ -232,7 +232,6 @@ class ALDataBuild:
                                                        'double_bond_cp_3',
                                                        'sample_scoring']]
 
-
         self.output_dataframe.dropna(inplace=True)
         self.random_dataframe.dropna(how='all', inplace=True)
         self.random_dataframe.drop(columns=['original_index'], inplace=True)
@@ -241,8 +240,8 @@ class ALDataBuild:
         self.random_dataframe.rename(columns={'Unnamed: 0': 'original_index'}, inplace=True)
 
     def merge_dls_data(self):
-        #self.dlsdata_average['Sample Name'] = self.dlsdata_average['Sample Name'].str.strip()
-        #self.output_dataframe['original_index'] = self.output_dataframe['original_index'].str.strip()
+        # self.dlsdata_average['Sample Name'] = self.dlsdata_average['Sample Name'].str.strip()
+        # self.output_dataframe['original_index'] = self.output_dataframe['original_index'].str.strip()
 
         self.merged_dataframe_AL = pd.merge(self.output_dataframe, self.dlsdata_average,
                                             how="inner",
@@ -252,20 +251,46 @@ class ALDataBuild:
         print(self.merged_dataframe_AL)
 
         self.merged_dataframe_random = pd.merge(self.random_dataframe, self.dlsdata_average,
-                                    how="inner",
-                                    left_on="original_index",
-                                    right_on="Sample Name").reset_index(drop=True)
+                                                how="inner",
+                                                left_on="original_index",
+                                                right_on="Sample Name").reset_index(drop=True)
 
         ###Don't know why this is happpening but quick fix
         self.merged_dataframe_AL['ethanol_dil'] = 0.00
         self.merged_dataframe_random['ethanol_dil'] = 0.00
         print(self.merged_dataframe_random)
 
+    def load_x_y_prev_run(self, recent_folder):
+        recent_iteration_run = recent_folder
+        path_of_file = os.path.join(recent_iteration_run, "Added_Data.csv")
+        if os.path.exists(path_of_file):
+            prev_x_y_df = pd.read_csv(path_of_file)
+            prev_x_df = prev_x_y_df.drop(columns=['Z-Average (d.nm)']).to_numpy()
+            prev_y_df = prev_x_y_df['Z-Average (d.nm)'].to_numpy().reshape(-1)
+
+        else:
+            prev_x_df = None
+            prev_y_df = None
+
+        return prev_x_df, prev_y_df
+
+    def load_x_val_prev_run(self, recent_folder):
+        # Need most recent folder name
+        # Then load the X_val file if exists.
+        recent_iteration_run = recent_folder
+        path_of_file = os.path.join(recent_iteration_run, "X_val.csv")
+        if os.path.exists(path_of_file):
+            X_val_df = pd.read_csv(path_of_file)
+            X_val = X_val_df.to_numpy()
+            X_val_column_names = X_val_df.columns
+
+            return X_val, X_val_column_names
+
     def remove_AL_from_unlabelled(self, X_val, X_val_columns_names):
         X_val = pd.DataFrame(X_val, columns=X_val_columns_names)
         temporary_AL_dataframe = self.merged_dataframe_AL.drop(columns=['original_index', 'sample_scoring',
-                                                                                'Sample Name','Z-Average (d.nm)',
-                                                                                'PdI','PdI Width (d.nm)'])
+                                                                        'Sample Name', 'Z-Average (d.nm)',
+                                                                        'PdI', 'PdI Width (d.nm)'])
 
         merge_dfs = X_val.merge(temporary_AL_dataframe.drop_duplicates(), on=list(temporary_AL_dataframe),
                                 how='left', indicator=True)
@@ -276,11 +301,10 @@ class ALDataBuild:
 
         return X_val, X_val_columns_names
 
-
     def return_AL_data(self):
         pre_x_train = self.merged_dataframe_AL.drop(columns=['original_index', 'sample_scoring',
-                                                                                'Sample Name','Z-Average (d.nm)',
-                                                                                'PdI','PdI Width (d.nm)'])
+                                                             'Sample Name', 'Z-Average (d.nm)',
+                                                             'PdI', 'PdI Width (d.nm)'])
 
         self.X_train_AL = pre_x_train.to_numpy()
 
@@ -288,23 +312,30 @@ class ALDataBuild:
 
         self.y_train_AL = pre_y_train.to_numpy().reshape(-1)
 
+        return self.X_train_AL, self.y_train_AL
 
-    def add_AL_to_train(self, X_train, y_train):
-        X_train = np.vstack((X_train, self.X_train_AL))
-        y_train = np.hstack((y_train, self.y_train_AL)).astype(float)
+    def add_AL_to_train(self, X_train_initial, y_train_initial,
+                        X_train_prev, y_train_prev):
+
+        if X_train_prev is not None and y_train_prev is not None:
+            X_train = np.vstack((X_train_initial, X_train_prev, self.X_train_AL))
+            y_train = np.hstack((y_train_initial, y_train_prev, self.y_train_AL)).astype(float)
+        else:
+            X_train = np.vstack((X_train_initial, self.X_train_AL))
+            y_train = np.hstack((y_train_initial, self.y_train_AL)).astype(float)
 
         return X_train, y_train
-    
+
     def remove_random_from_unlabelled(self, X_val, X_val_columns_names):
         X_val = pd.DataFrame(X_val, columns=X_val_columns_names)
         if 'sample_scoring' in self.merged_dataframe_random.columns:
             temporary_random_dataframe = self.merged_dataframe_random.drop(columns=['original_index', 'sample_scoring',
-                                                                                'Sample Name','Z-Average (d.nm)',
-                                                                                'PdI','PdI Width (d.nm)'])
+                                                                                    'Sample Name', 'Z-Average (d.nm)',
+                                                                                    'PdI', 'PdI Width (d.nm)'])
         else:
             temporary_random_dataframe = self.merged_dataframe_random.drop(columns=['original_index',
-                                                                                'Sample Name','Z-Average (d.nm)',
-                                                                                'PdI','PdI Width (d.nm)'])
+                                                                                    'Sample Name', 'Z-Average (d.nm)',
+                                                                                    'PdI', 'PdI Width (d.nm)'])
 
         merge_dfs = X_val.merge(temporary_random_dataframe.drop_duplicates(), on=list(temporary_random_dataframe),
                                 how='left', indicator=True)
@@ -313,19 +344,16 @@ class ALDataBuild:
         X_val = merge_dfs.to_numpy()
 
         return X_val, X_val_columns_names
-    
-    
 
     def return_random_data(self):
         if 'sample_scoring' in self.merged_dataframe_random.columns:
             pre_x_train = self.merged_dataframe_random.drop(columns=['original_index', 'sample_scoring',
-                                                                                    'Sample Name', 'Z-Average (d.nm)',
-                                                                                    'PdI', 'PdI Width (d.nm)'])
+                                                                     'Sample Name', 'Z-Average (d.nm)',
+                                                                     'PdI', 'PdI Width (d.nm)'])
         else:
             pre_x_train = self.merged_dataframe_random.drop(columns=['original_index',
-                                                                                    'Sample Name', 'Z-Average (d.nm)',
-                                                                                    'PdI', 'PdI Width (d.nm)'])
-
+                                                                     'Sample Name', 'Z-Average (d.nm)',
+                                                                     'PdI', 'PdI Width (d.nm)'])
 
         self.X_train_random = pre_x_train.to_numpy()
 
@@ -333,19 +361,24 @@ class ALDataBuild:
 
         self.y_train_random = pre_y_train.to_numpy().reshape(-1)
 
+        return self.X_train_random, self.y_train_random
 
-    def add_random_to_train(self, X_train, y_train):
-        X_train = np.vstack((X_train, self.X_train_random))
-        y_train = np.hstack((y_train, self.y_train_random)).astype(float)
+    def add_random_to_train(self, X_train_initial, y_train_initial,
+                            X_train_prev, y_train_prev):
+
+        if X_train_prev is not None and y_train_prev is not None:
+            X_train = np.vstack((X_train_initial, X_train_prev, self.X_train_random))
+            y_train = np.hstack((y_train_initial, y_train_prev, self.y_train_random)).astype(float)
+        else:
+            X_train = np.vstack((X_train_initial, self.X_train_random))
+            y_train = np.hstack((y_train_initial, self.y_train_random)).astype(float)
 
         return X_train, y_train
-
-
 
 ##Test
 
 
-#X_Val Function
+# X_Val Function
 # def unlabelled_data(file, method, column_removal_experiment: list=None):
 #     ul_df = pd.read_csv(file)
 #     column_drop = ['Duplicate_Check',

@@ -183,24 +183,28 @@ class Algorithm(object):
         elif self.post_run == True:
             if self.run_type == 'AL':
                 al_folder = 'AL_Output'
+                save_folder = os.path.join(self.save_path, al_folder)
                 list_of_folders = [subdir for root, subdir,rest in os.walk(save_folder)]
                 list_of_folders =list(filter(None, list_of_folders))
 
                 string = ''.join(str(folder) for folder in list_of_folders)
-                count_of_iter = len(re.findall(r"(?<=_)(?:complete_iteration_\d+)", string))
+                list_of_compl_folders = re.findall(r"(?<=_)(?:complete_iteration_\d+)", string)
+                self.sorted_list_of_compl_folders = sorted(list_of_compl_folders, key=lambda  x: int("".join([i for i in x if i.isdigit()])),
+                                                      reverse=True)
+                count_of_iter = len(list_of_compl_folders)
 
 
                 dirName = str(self.uuid) + '_' + str(self.today_date_time)+str("_iteration_")+str(count_of_iter+1)
 
                 try:
-                    self.save_folder = os.path.join(save_folder,dirName)
-                    os.mkdir(self.save_folder)
+                    self.save_path = os.path.join(save_folder,dirName)
+                    os.mkdir(self.save_path)
                     print("Directory ", dirName, " Created")
                 except FileExistsError:
                     print("Directory ", dirName, " already exists")
             elif self.run_type == 'Random':
-                al_folder = 'Random_Output'
-                save_folder = os.path.join(self.save_path,al_folder)
+                rand_folder = 'Random_Output'
+                save_folder = os.path.join(self.save_path,rand_folder)
                 list_of_folders = [subdir for root, subdir,rest in os.walk(save_folder)]
                 list_of_folders =list(filter(None, list_of_folders))
 
@@ -210,8 +214,8 @@ class Algorithm(object):
 
                 dirName = str(self.uuid) + '_' + str(self.today_date_time)+str("_iteration_")+str(count_of_iter+1)
                 try:
-                    self.save_folder = os.path.join(save_folder,dirName)
-                    os.mkdir(self.save_folder)
+                    self.save_path = os.path.join(save_folder, dirName)
+                    os.mkdir(self.save_path)
                     print("Directory ", dirName, " Created")
                 except FileExistsError:
                     print("Directory ", dirName, " already exists")
@@ -231,8 +235,7 @@ class Algorithm(object):
 
         # Pull in unlabelled Data
 
-        self.X_val, self.columns_x_val = unlabelled_data(self.file,
-                                                         method='fillna', column_removal_experiment=self.column_removal_experiment)  # TODO need to rename
+
 
 
         # uncertain_count = math.ceil(len(self.X_val) * self.perc_uncertain)
@@ -262,10 +265,17 @@ class Algorithm(object):
             more_data.z_scoring(threshold=1.0)
             more_data.collect_formulations()
             more_data.merge_dls_data()
+            if self.sorted_list_of_compl_folders:
+                self.X_train_prev, self.y_train_prev = more_data.load_x_y_prev_run(recent_folder=self.sorted_list_of_compl_folders[-1])
+                self.X_val, self.columns_x_val = more_data.load_x_val_prev_run(recent_folder= self.sorted_list_of_compl_folders[-1])
+            else:
+                self.X_val, self.columns_x_val = unlabelled_data(self.file,
+                                                                 method='fillna',
+                                                                 column_removal_experiment=self.column_removal_experiment)  # TODO need to rename
 
             if self.run_type == 'AL':
                 self.X_val, self.columns_x_val = more_data.remove_AL_from_unlabelled(X_val=self.X_val, X_val_columns_names=self.columns_x_val)
-                more_data.return_AL_data()
+                self.X_train_AL, self.y_train_AL = more_data.return_AL_data()
                 self.X_train, self.y_train = more_data.add_AL_to_train(X_train=self.X_train,
                                                                            y_train=self.y_train)
 
@@ -275,7 +285,7 @@ class Algorithm(object):
 
             elif self.run_type == 'Random':
                 self.X_val, self.columns_x_val = more_data.remove_random_from_unlabelled(X_val=self.X_val, X_val_columns_names=self.columns_x_val)
-                more_data.return_random_data()
+                self.X_train_random, self.y_train_random = more_data.return_random_data()
                 self.X_train, self.y_train = more_data.add_random_to_train(X_train=self.X_train,
                                                                            y_train=self.y_train)
 
@@ -284,6 +294,10 @@ class Algorithm(object):
             elif self.run_type is None:
                 pass
 
+        elif self.post_run==False:
+            self.X_val, self.columns_x_val = unlabelled_data(self.file,
+                                                             method='fillna',
+                                                             column_removal_experiment=self.column_removal_experiment)  # TODO need to rename
 
 
 
@@ -319,6 +333,9 @@ class Algorithm(object):
                 self.n_instances = len(self.X_val)
             elif self.n_instances in ['Half', 'half']:
                 self.n_instances = round(len(self.X_val) / 2)
+
+
+
 
 
 
@@ -694,6 +711,42 @@ class Algorithm(object):
 
         master_df.to_excel(os.path.join(path,file_name),index=False)
 
+    def export_modified_unlabelled_data_and_additional_labeled(self):
+
+
+        _, reversed_x_val, _ = self.normaliser.inverse(self.X_train, self.X_val, self.X_test,
+                                                       converted_columns=self.converted_columns)
+        unlabeled_data= pd.DataFrame(reversed_x_val, columns=self.columns_x_val)
+        unlabeled_data['original_index'] = self.selection_probas_val[0]
+
+        unlabeled_data.to_csv(os.path.join(self.save_path, "Unlabeled_Data.csv"), index=False)
+
+        #Need
+
+        if self.X_train_prev is not None and self.y_train_prev is not None:
+            if self.run_type == 'AL':
+                add_data_tgthr_x = np.hstack((self.X_train_prev, self.X_train_AL))
+                add_data_tgthr_y = np.vstack((self.y_train_prev, self.y_train_AL)).reshape(-1,1)
+                added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
+                added_data['Z-Average (d.nm)'] = add_data_tgthr_y
+                added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index = False)
+            elif self.run_type == 'Random':
+                add_data_tgthr_x = np.hstack((self.X_train_prev, self.X_train_random))
+                add_data_tgthr_y = np.vstack((self.y_train_prev, self.y_train_random)).reshape(-1, 1)
+                added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
+                added_data['Z-Average (d.nm)'] = add_data_tgthr_y
+                added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+        else:
+            print("No previous iteration data")
+            if self.run_type == 'AL':
+                added_data = pd.DataFrame(self.X_train_AL, columns=self.columns_x_val)
+                added_data['Z-Average (d.nm)'] = self.y_train_AL.reshape(-1, 1)
+                added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+            elif self.run_type == 'Random':
+                added_data = pd.DataFrame(self.X_train_random, columns=self.columns_x_val)
+                added_data['Z-Average (d.nm)'] = self.y_train_random.reshape(-1, 1)
+                added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+
     def change_folder_name_complete(self):
 
         old_name = self.save_path
@@ -854,7 +907,7 @@ alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
                                            ],
                 MRMR_K_Value=25
                 ,post_run=True,
-                run_type='Random')
+                run_type='AL')
 
 #alg.analyse_data()
 alg.run_algorithm(initialisation='optimised', splits=3, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=10, kfold_repeats=2,
@@ -865,5 +918,6 @@ alg.similairty_scoring(method='gower', threshold=0.2, n_instances=10)
 alg.output_data()
 alg.random_unlabelled(n_instances=10)
 alg.master_file()
+alg.export_modified_unlabelled_data_and_additional_labeled()
 alg.change_folder_name_complete()
 
