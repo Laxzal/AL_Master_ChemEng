@@ -18,6 +18,13 @@ class ALDataBuild:
         self.random_dataframe = pd.DataFrame()
         self.output_dataframe = pd.DataFrame()
 
+    def load_prev_gguid(self,save_path, recent_folder):
+        prev_gguid_path = os.path.join(save_path,recent_folder,'iteration_prev_gguid.csv')
+        self.prev_gguid_df = pd.read_csv(prev_gguid_path)
+        self.recent_guid = list(self.prev_gguid_df['gguid'])[-1]
+
+        return self.prev_gguid_df
+
     def collect_csv(self):
         '''
          This function will call on the folder that was initalised when the class was called, and 'walk'
@@ -32,9 +39,10 @@ class ALDataBuild:
         for f in self.files:
 
             if f.endswith(('.csv', '.CSV')):
-                print(str(f))
-                dw = pd.read_csv(os.path.join(self.folder, f), encoding="ISO-8859-8")
-                self.dls_data = self.dls_data.append(dw, ignore_index=True)
+                if str(self.recent_guid) in f:
+                    print(str(f))
+                    dw = pd.read_csv(os.path.join(self.folder, f), encoding="ISO-8859-8")
+                    self.dls_data = self.dls_data.append(dw, ignore_index=True)
         return self.dls_data
 
     def clean_dls_data(self):
@@ -260,9 +268,9 @@ class ALDataBuild:
         self.merged_dataframe_random['ethanol_dil'] = 0.00
         print(self.merged_dataframe_random)
 
-    def load_x_y_prev_run(self, recent_folder):
+    def load_x_y_prev_run(self, save_path, recent_folder):
         recent_iteration_run = recent_folder
-        path_of_file = os.path.join(recent_iteration_run, "Added_Data.csv")
+        path_of_file = os.path.join(save_path, recent_iteration_run, "Added_Data.csv")
         if os.path.exists(path_of_file):
             prev_x_y_df = pd.read_csv(path_of_file)
             prev_x_df = prev_x_y_df.drop(columns=['Z-Average (d.nm)']).to_numpy()
@@ -274,30 +282,51 @@ class ALDataBuild:
 
         return prev_x_df, prev_y_df
 
-    def load_x_val_prev_run(self, recent_folder):
+    def load_x_val_prev_run(self, save_path, recent_folder):
         # Need most recent folder name
         # Then load the X_val file if exists.
+        x_val_prev_index = None
         recent_iteration_run = recent_folder
-        path_of_file = os.path.join(recent_iteration_run, "X_val.csv")
+        path_of_file = os.path.join(save_path, recent_iteration_run, "Unlabeled_Data.csv")
         if os.path.exists(path_of_file):
             X_val_df = pd.read_csv(path_of_file)
+            if 'original_index' in X_val_df.columns:
+                X_val_df.drop(columns=['original_index'], inplace=True)
+            if 'Unnamed: 0' in X_val_df:
+                x_val_prev_index = X_val_df['Unnamed: 0'].copy()
+                X_val_df.drop(columns=['Unnamed: 0'], inplace=True)
             X_val = X_val_df.to_numpy()
             X_val_column_names = X_val_df.columns
 
-            return X_val, X_val_column_names
+            return X_val, X_val_column_names, x_val_prev_index
 
-    def remove_AL_from_unlabelled(self, X_val, X_val_columns_names):
+    def remove_AL_from_unlabelled(self, X_val, X_val_columns_names,x_prev_index, count):
         X_val = pd.DataFrame(X_val, columns=X_val_columns_names)
-        temporary_AL_dataframe = self.merged_dataframe_AL.drop(columns=['original_index', 'sample_scoring',
-                                                                        'Sample Name', 'Z-Average (d.nm)',
-                                                                        'PdI', 'PdI Width (d.nm)'])
 
-        merge_dfs = X_val.merge(temporary_AL_dataframe.drop_duplicates(), on=list(temporary_AL_dataframe),
-                                how='left', indicator=True)
-        merge_dfs = merge_dfs[merge_dfs['_merge'] == 'left_only']
-        merge_dfs.drop(columns=['_merge'], inplace=True)
-        print("No. of removed unlabelled formulations: ", X_val.shape[0] - merge_dfs.shape[0])
-        X_val = merge_dfs.to_numpy()
+        if count<=1:
+            temporary_AL_dataframe = self.merged_dataframe_AL.drop(columns=['original_index', 'sample_scoring',
+                                                                            'Sample Name', 'Z-Average (d.nm)',
+                                                                            'PdI', 'PdI Width (d.nm)'])
+
+            merge_dfs = X_val.merge(temporary_AL_dataframe.drop_duplicates(), on=list(temporary_AL_dataframe),
+                                    how='left', indicator=True)
+            merge_dfs = merge_dfs[merge_dfs['_merge'] == 'left_only']
+            merge_dfs.drop(columns=['_merge'], inplace=True)
+            print("No. of removed unlabelled formulations: ", X_val.shape[0] - merge_dfs.shape[0])
+            X_val = merge_dfs.to_numpy()
+
+        else:
+            temporary_AL_dataframe = self.merged_dataframe_AL.drop(columns=['sample_scoring',
+                                                                            'Sample Name', 'Z-Average (d.nm)',
+                                                                            'PdI', 'PdI Width (d.nm)'])
+
+            X_val['original_index'] = x_prev_index
+            merge_dfs = X_val.merge(temporary_AL_dataframe['original_index'], on=['original_index'], how='left',
+                                    indicator=True)
+            merge_dfs = merge_dfs[merge_dfs['_merge'] == 'left_only']
+            merge_dfs.drop(columns=['_merge','original_index'], inplace=True)
+            print("No. of removed unlabelled formulations: ", X_val.shape[0] - merge_dfs.shape[0])
+            X_val = merge_dfs.to_numpy()
 
         return X_val, X_val_columns_names
 

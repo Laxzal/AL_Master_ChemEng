@@ -151,6 +151,7 @@ class Algorithm(object):
         self.K = MRMR_K_Value
         self.post_run = post_run
         self.run_type = run_type
+        self.sorted_list_of_compl_folders = None
         #######New Data - from self.create_data()/self.normalise_data()
         self.X_val = None
         self.y_train = None
@@ -184,17 +185,22 @@ class Algorithm(object):
             if self.run_type == 'AL':
                 al_folder = 'AL_Output'
                 save_folder = os.path.join(self.save_path, al_folder)
+                self.input_folder = save_folder
                 list_of_folders = [subdir for root, subdir,rest in os.walk(save_folder)]
                 list_of_folders =list(filter(None, list_of_folders))
 
                 string = ''.join(str(folder) for folder in list_of_folders)
-                list_of_compl_folders = re.findall(r"(?<=_)(?:complete_iteration_\d+)", string)
-                self.sorted_list_of_compl_folders = sorted(list_of_compl_folders, key=lambda  x: int("".join([i for i in x if i.isdigit()])),
+                list_of_compl_folders = re.findall(r"(?<=')(\S+_\d+_\d+_complete_iteration_\d+)", string)
+
+                if len(list_of_compl_folders) != 0:
+                    self.sorted_list_of_compl_folders = sorted(list_of_compl_folders, key=lambda  x: int("".join([i for i in x if i.isdigit()])),
                                                       reverse=True)
-                count_of_iter = len(list_of_compl_folders)
+                else:
+                    self.sorted_list_of_compl_folders = None
+                self.count_of_iter = len(list_of_compl_folders)
 
 
-                dirName = str(self.uuid) + '_' + str(self.today_date_time)+str("_iteration_")+str(count_of_iter+1)
+                dirName = str(self.uuid) + '_' + str(self.today_date_time)+str("_iteration_")+str(self.count_of_iter+1)
 
                 try:
                     self.save_path = os.path.join(save_folder,dirName)
@@ -205,14 +211,22 @@ class Algorithm(object):
             elif self.run_type == 'Random':
                 rand_folder = 'Random_Output'
                 save_folder = os.path.join(self.save_path,rand_folder)
+                self.input_folder = save_folder
                 list_of_folders = [subdir for root, subdir,rest in os.walk(save_folder)]
                 list_of_folders =list(filter(None, list_of_folders))
 
                 string = ''.join(str(folder) for folder in list_of_folders)
-                count_of_iter = len(re.findall(r"(?<=_)(?:complete_iteration_\d+)", string))
+                list_of_compl_folders = re.findall(r"(?<=')(\S+_\d+_\d+_complete_iteration_\d+)", string)
+                if len(list_of_compl_folders) != 0:
+                    self.sorted_list_of_compl_folders = sorted(list_of_compl_folders, key=lambda  x: int("".join([i for i in x if i.isdigit()])),
+                                                      reverse=True)
+                else:
+                    self.sorted_list_of_compl_folders = None
+                self.count_of_iter = len(list_of_compl_folders)
 
 
-                dirName = str(self.uuid) + '_' + str(self.today_date_time)+str("_iteration_")+str(count_of_iter+1)
+
+                dirName = str(self.uuid) + '_' + str(self.today_date_time)+str("_iteration_")+str(self.count_of_iter+1)
                 try:
                     self.save_path = os.path.join(save_folder, dirName)
                     os.mkdir(self.save_path)
@@ -258,39 +272,47 @@ class Algorithm(object):
         if self.post_run==True:
             more_data = ALDataBuild(folder_dls=r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Input',
                                     folder_formulations=r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output')
-
+            self.prev_gguid_df = more_data.load_prev_gguid(save_path=self.input_folder,recent_folder=self.sorted_list_of_compl_folders[-1])
             more_data.collect_csv()
             more_data.clean_dls_data()
             more_data.filter_out_D_iteration()
             more_data.z_scoring(threshold=1.0)
             more_data.collect_formulations()
             more_data.merge_dls_data()
-            if self.sorted_list_of_compl_folders:
-                self.X_train_prev, self.y_train_prev = more_data.load_x_y_prev_run(recent_folder=self.sorted_list_of_compl_folders[-1])
-                self.X_val, self.columns_x_val = more_data.load_x_val_prev_run(recent_folder= self.sorted_list_of_compl_folders[-1])
-            else:
+            if self.sorted_list_of_compl_folders is None:
                 self.X_val, self.columns_x_val = unlabelled_data(self.file,
                                                                  method='fillna',
                                                                  column_removal_experiment=self.column_removal_experiment)  # TODO need to rename
+                self.X_train_prev, self.y_train_prev = None, None
+            else:
+                self.X_train_prev, self.y_train_prev = more_data.load_x_y_prev_run(save_path =self.input_folder
+                                                                                   ,recent_folder=self.sorted_list_of_compl_folders[-1])
+                self.X_val, self.columns_x_val, self.x_val_prev_index = more_data.load_x_val_prev_run(save_path =self.input_folder ,
+                                                                               recent_folder= self.sorted_list_of_compl_folders[-1])
 
             if self.run_type == 'AL':
-                self.X_val, self.columns_x_val = more_data.remove_AL_from_unlabelled(X_val=self.X_val, X_val_columns_names=self.columns_x_val)
+                self.X_val, self.columns_x_val = more_data.remove_AL_from_unlabelled(X_val=self.X_val,
+                                                                                     X_val_columns_names=self.columns_x_val,
+                                                                                     x_prev_index=self.x_val_prev_index,
+                                                                                     count= (self.count_of_iter+1))
                 self.X_train_AL, self.y_train_AL = more_data.return_AL_data()
-                self.X_train, self.y_train = more_data.add_AL_to_train(X_train=self.X_train,
-                                                                           y_train=self.y_train)
+                self.X_train, self.y_train = more_data.add_AL_to_train(X_train_initial=self.X_train, y_train_initial=self.y_train,
+                            X_train_prev=self.X_train_prev, y_train_prev=self.y_train_prev)
 
                 #This updates the main X and y arrays ion the Data Load Split so that when new data is added, the analysis
                 #can be done on ALSO the new data
-                data_load_split.update_x_y_data(additional_x=more_data.X_train_AL,additional_y=more_data.y_train_AL)
+                data_load_split.update_x_y_data(additional_x=more_data.X_train_AL,additional_y=more_data.y_train_AL,
+                                                prev_x_data=self.X_train_prev, prev_y_data=self.y_train_prev)
 
             elif self.run_type == 'Random':
                 self.X_val, self.columns_x_val = more_data.remove_random_from_unlabelled(X_val=self.X_val, X_val_columns_names=self.columns_x_val)
                 self.X_train_random, self.y_train_random = more_data.return_random_data()
-                self.X_train, self.y_train = more_data.add_random_to_train(X_train=self.X_train,
-                                                                           y_train=self.y_train)
+                self.X_train, self.y_train = more_data.add_random_to_train(X_train_initial=self.X_train, y_train_initial=self.y_train,
+                            X_train_prev=self.X_train_prev, y_train_prev=self.y_train_prev)
 
 
-                data_load_split.update_x_y_data(additional_x=more_data.X_train_random, additional_y=more_data.y_train_random)
+                data_load_split.update_x_y_data(additional_x=more_data.X_train_random, additional_y=more_data.y_train_random,
+                                                prev_x_data=self.X_train_prev,prev_y_data= self.y_train_prev)
             elif self.run_type is None:
                 pass
 
@@ -344,7 +366,6 @@ class Algorithm(object):
 
 
         return self.X_train, self.X_test, self.y_train, self.y_test
-        # normalise data - Increased accuracy from 50% to 89%
 
     def normalise_data(self):
         self.normaliser = MinMaxScaling()
@@ -616,6 +637,8 @@ class Algorithm(object):
             df_temp['date'] = [int(self.today_date)]
             df_temp['time'] = [int(self.time)]
             df_temp['guid'] = [self.uuid]
+            df_temp['run_type'] = self.run_type
+            df_temp['iteration'] = self.count_of_iter+1
 
             temp_list = []
             for i in range(0,len(self.model_object)):
@@ -711,7 +734,7 @@ class Algorithm(object):
 
         master_df.to_excel(os.path.join(path,file_name),index=False)
 
-    def export_modified_unlabelled_data_and_additional_labeled(self):
+    def export_modified_unlabelled_data_and_additional_labeled_and_guid(self):
 
 
         _, reversed_x_val, _ = self.normaliser.inverse(self.X_train, self.X_val, self.X_test,
@@ -719,7 +742,7 @@ class Algorithm(object):
         unlabeled_data= pd.DataFrame(reversed_x_val, columns=self.columns_x_val)
         unlabeled_data['original_index'] = self.selection_probas_val[0]
 
-        unlabeled_data.to_csv(os.path.join(self.save_path, "Unlabeled_Data.csv"), index=False)
+        unlabeled_data.to_csv(os.path.join(self.save_path, "Unlabeled_Data.csv"), index=True)
 
         #Need
 
@@ -746,6 +769,11 @@ class Algorithm(object):
                 added_data = pd.DataFrame(self.X_train_random, columns=self.columns_x_val)
                 added_data['Z-Average (d.nm)'] = self.y_train_random.reshape(-1, 1)
                 added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+        temp_new_guid = pd.DataFrame([self.count_of_iter, self.uuid],columns=['iteration', 'gguid'])
+
+        df2 = pd.concat([self.prev_gguid_df, temp_new_guid]).reset_index(drop=True)
+        df2.to_csv(os.path.join(self.save_path,'iteration_prev_gguid.csv'),index=False)
+
 
     def change_folder_name_complete(self):
 
@@ -918,6 +946,6 @@ alg.similairty_scoring(method='gower', threshold=0.2, n_instances=10)
 alg.output_data()
 alg.random_unlabelled(n_instances=10)
 alg.master_file()
-alg.export_modified_unlabelled_data_and_additional_labeled()
+alg.export_modified_unlabelled_data_and_additional_labeled_and_guid()
 alg.change_folder_name_complete()
 

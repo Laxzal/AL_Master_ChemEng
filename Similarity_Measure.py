@@ -2,7 +2,7 @@ import gower
 import numpy as np
 from scipy import spatial
 import pandas as pd
-
+from datetime import datetime
 
 class Similarity():
 
@@ -42,8 +42,10 @@ class Similarity():
                         formulation_id))
             else:
                 break
+        now = datetime.now()
 
-        print("Completed Gower Scoring")
+        current_time = now.strftime("%H:%M:%S")
+        print(f" {current_time} - Completed Gower Scoring")
         print(
             "Found " + str(self.points.shape[0]) + " points with similarities less than or equal to: " + str(threshold))
 
