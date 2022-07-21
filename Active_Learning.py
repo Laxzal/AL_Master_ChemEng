@@ -748,14 +748,14 @@ class Algorithm(object):
 
         if self.X_train_prev is not None and self.y_train_prev is not None:
             if self.run_type == 'AL':
-                add_data_tgthr_x = np.hstack((self.X_train_prev, self.X_train_AL))
-                add_data_tgthr_y = np.vstack((self.y_train_prev, self.y_train_AL)).reshape(-1,1)
+                add_data_tgthr_x = np.vstack((self.X_train_prev, self.X_train_AL))
+                add_data_tgthr_y = np.hstack((self.y_train_prev, self.y_train_AL)).reshape(-1,1)
                 added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
                 added_data['Z-Average (d.nm)'] = add_data_tgthr_y
                 added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index = False)
             elif self.run_type == 'Random':
-                add_data_tgthr_x = np.hstack((self.X_train_prev, self.X_train_random))
-                add_data_tgthr_y = np.vstack((self.y_train_prev, self.y_train_random)).reshape(-1, 1)
+                add_data_tgthr_x = np.vstack((self.X_train_prev, self.X_train_random))
+                add_data_tgthr_y = np.hstack((self.y_train_prev, self.y_train_random)).reshape(-1, 1)
                 added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
                 added_data['Z-Average (d.nm)'] = add_data_tgthr_y
                 added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
