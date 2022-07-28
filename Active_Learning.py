@@ -73,6 +73,9 @@ def unlabelled_data(file, method, column_removal_experiment: list=None):
     ul_df = ul_df.drop(columns=column_drop)
     #ul_df = ul_df.drop(columns=useless_clm_drop)
 
+    #Quick fix
+    ul_df['ethanol_dil'] = 0.00
+
     #Remove a column(s)
     if column_removal_experiment is not None:
         ul_df.drop(columns=column_removal_experiment, inplace=True)
@@ -159,6 +162,8 @@ class Algorithm(object):
         self.y_test = None
         self.X_test = None
         self.normaliser = None
+        self.count_of_iter = None
+        self.prev_gguid_df = None
 
         ####Clustering
         self.best_k = None
@@ -197,7 +202,7 @@ class Algorithm(object):
                                                       reverse=True)
                 else:
                     self.sorted_list_of_compl_folders = None
-                self.count_of_iter = len(list_of_compl_folders)
+                self.count_of_iter = len(list_of_compl_folders) - 1
 
 
                 dirName = str(self.uuid) + '_' + str(self.today_date_time)+str("_iteration_")+str(self.count_of_iter+1)
@@ -305,7 +310,10 @@ class Algorithm(object):
                                                 prev_x_data=self.X_train_prev, prev_y_data=self.y_train_prev)
 
             elif self.run_type == 'Random':
-                self.X_val, self.columns_x_val = more_data.remove_random_from_unlabelled(X_val=self.X_val, X_val_columns_names=self.columns_x_val)
+                self.X_val, self.columns_x_val = more_data.remove_random_from_unlabelled(X_val=self.X_val,
+                                                                                     X_val_columns_names=self.columns_x_val,
+                                                                                     x_prev_index=self.x_val_prev_index,
+                                                                                     count= (self.count_of_iter+1))
                 self.X_train_random, self.y_train_random = more_data.return_random_data()
                 self.X_train, self.y_train = more_data.add_random_to_train(X_train_initial=self.X_train, y_train_initial=self.y_train,
                             X_train_prev=self.X_train_prev, y_train_prev=self.y_train_prev)
@@ -321,7 +329,7 @@ class Algorithm(object):
                                                              method='fillna',
                                                              column_removal_experiment=self.column_removal_experiment)  # TODO need to rename
 
-
+            self.X_train_prev, self.y_train_prev = None, None
 
 
 
@@ -395,7 +403,7 @@ class Algorithm(object):
                                                        scoring_type=self.scoring_type,
                                                        instances=self.n_instances,
                                                        query_strategy=max_std_sampling)
-            if initialisation == 'gridsearch':
+            if initialisation in ['gridsearch','randomized'] :
                 self.scores = self.committee_models.gridsearch_committee(initialisation=initialisation, grid_params=grid_params, verbose=verbose)
             elif initialisation == 'optimised':
                 self.scores = self.committee_models.optimised_comittee(params=grid_params)
@@ -638,7 +646,7 @@ class Algorithm(object):
             df_temp['time'] = [int(self.time)]
             df_temp['guid'] = [self.uuid]
             df_temp['run_type'] = self.run_type
-            df_temp['iteration'] = self.count_of_iter+1
+            df_temp['iteration'] = self.count_of_iter+1 if self.count_of_iter is not None else 0
 
             temp_list = []
             for i in range(0,len(self.model_object)):
@@ -745,34 +753,39 @@ class Algorithm(object):
         unlabeled_data.to_csv(os.path.join(self.save_path, "Unlabeled_Data.csv"), index=True)
 
         #Need
-
-        if self.X_train_prev is not None and self.y_train_prev is not None:
-            if self.run_type == 'AL':
-                add_data_tgthr_x = np.vstack((self.X_train_prev, self.X_train_AL))
-                add_data_tgthr_y = np.hstack((self.y_train_prev, self.y_train_AL)).reshape(-1,1)
-                added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
-                added_data['Z-Average (d.nm)'] = add_data_tgthr_y
-                added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index = False)
-            elif self.run_type == 'Random':
-                add_data_tgthr_x = np.vstack((self.X_train_prev, self.X_train_random))
-                add_data_tgthr_y = np.hstack((self.y_train_prev, self.y_train_random)).reshape(-1, 1)
-                added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
-                added_data['Z-Average (d.nm)'] = add_data_tgthr_y
-                added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+        if self.post_run == True:
+            if self.X_train_prev is not None and self.y_train_prev is not None:
+                if self.run_type == 'AL':
+                    add_data_tgthr_x = np.vstack((self.X_train_prev, self.X_train_AL))
+                    add_data_tgthr_y = np.hstack((self.y_train_prev, self.y_train_AL)).reshape(-1,1)
+                    added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
+                    added_data['Z-Average (d.nm)'] = add_data_tgthr_y
+                    added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index = False)
+                elif self.run_type == 'Random':
+                    add_data_tgthr_x = np.vstack((self.X_train_prev, self.X_train_random))
+                    add_data_tgthr_y = np.hstack((self.y_train_prev, self.y_train_random)).reshape(-1, 1)
+                    added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
+                    added_data['Z-Average (d.nm)'] = add_data_tgthr_y
+                    added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+            else:
+                print("No previous iteration data")
+                if self.run_type == 'AL':
+                    added_data = pd.DataFrame(self.X_train_AL, columns=self.columns_x_val)
+                    added_data['Z-Average (d.nm)'] = self.y_train_AL.reshape(-1, 1)
+                    added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+                elif self.run_type == 'Random':
+                    added_data = pd.DataFrame(self.X_train_random, columns=self.columns_x_val)
+                    added_data['Z-Average (d.nm)'] = self.y_train_random.reshape(-1, 1)
+                    added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+            temp_new_guid = pd.DataFrame([np.array((self.count_of_iter, self.uuid))],columns=['iteration', 'guid'])
+        elif self.post_run == False:
+            print("First run - No iteration data")
+            temp_new_guid = pd.DataFrame([np.array((self.count_of_iter, self.uuid))], columns=['iteration', 'guid'])
+        if self.prev_gguid_df is not None:
+            df2 = pd.concat([self.prev_gguid_df, temp_new_guid]).reset_index(drop=True)
         else:
-            print("No previous iteration data")
-            if self.run_type == 'AL':
-                added_data = pd.DataFrame(self.X_train_AL, columns=self.columns_x_val)
-                added_data['Z-Average (d.nm)'] = self.y_train_AL.reshape(-1, 1)
-                added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
-            elif self.run_type == 'Random':
-                added_data = pd.DataFrame(self.X_train_random, columns=self.columns_x_val)
-                added_data['Z-Average (d.nm)'] = self.y_train_random.reshape(-1, 1)
-                added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
-        temp_new_guid = pd.DataFrame([self.count_of_iter, self.uuid],columns=['iteration', 'gguid'])
-
-        df2 = pd.concat([self.prev_gguid_df, temp_new_guid]).reset_index(drop=True)
-        df2.to_csv(os.path.join(self.save_path,'iteration_prev_gguid.csv'),index=False)
+            df2 = temp_new_guid
+        df2.to_csv(os.path.join(self.save_path,'iteration_prev_guid.csv'),index=False)
 
 
     def change_folder_name_complete(self):
@@ -788,19 +801,19 @@ models = [SVR_Model, RandomForestEnsemble, CatBoostReg]
          # Neural_Network]
 # selection_functions = [selection_functions]
 
-SvmModel = {'C': [0.01, 0.1],  # np.logspace(-5, 2, 8),
-            'gamma': np.logspace(-5, 3, 9),
+#SvmModel = {'C': np.logspace(-3, 3, 8),
+#            'gamma': np.logspace(-5, 3, 9),
             # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-            'kernel': ['rbf', 'poly', 'sigmoid', 'linear'],
-            'coef0': [0, 0.001, 0.1, 1],
-            'degree': [1, 2, 3, 4]}
+#            'kernel': ['rbf', 'poly', 'sigmoid', 'linear'],
+#            'coef0': [0, 0.001, 0.1, 1],
+ #           'degree': [1, 2, 3, 4]}
 
 RfModel = {'n_estimators': [int(x) for x in np.linspace(start=200, stop=2000, num=10)],
-           #                  'max_features': ['auto', 'sqrt'],
-           #                  'max_depth': [int(x) for x in np.linspace(10, 35, num=11)]
-           # ,'min_samples_split': [2, 5, 10]
-           # ,'min_samples_leaf': [1, 2, 4]
-           # ,'bootstrap': [True, False]
+                             'max_features': ['auto', 'sqrt'],
+                             'max_depth': [int(x) for x in np.linspace(10, 35, num=11)]
+            ,'min_samples_split': [2, 5,7,8,9, 10]
+            ,'min_samples_leaf': [1, 2,3, 4,5]
+            ,'bootstrap': [True, False]
            }
 
 CBModel = {
@@ -811,24 +824,24 @@ CBModel = {
     #    'border_count': [32, 5, 10, 20, 50, 100, 200]
 }
 # https://www.vebuso.com/2020/03/svm-hyperparameter-tuning-using-gridsearchcv/
-#SVM_Reg = {'C': [0.0001,0.01,0.1,1,5,10,50, 100, 200,500, 1000],  # np.logspace(-6, 3,10), #*
-#           'gamma': np.logspace(-4, 2, 7),  # Kernel coefficient for rbf, poly & sig
-#           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-#           'kernel': [  'rbf',
-#               #'poly',
-#               'sigmoid',
-#               'linear'  # *
-#           ]
-          #  ,'coef0': [0,0.0001,0.001,0.01,0.1, 1,10,20,100] #Independent term for poly & sig
+SVM_Reg = {'C': [0.0001,0.01,0.1,1,5,10,50, 100, 200,500, 1000],  # np.logspace(-6, 3,10), #*
+           'gamma': ['auto','scale'], #np.logspace(-4, 2, 7),  # Kernel coefficient for rbf, poly & sig
+           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
+           'kernel': [  'rbf',
+           #    'poly',
+               'sigmoid',
+               'linear'  # *
+           ]
+           ,'coef0': [0,0.0001,0.001,0.01,0.1, 1,10,20,100] #Independent term for poly & sig
            #, 'degree': [1,2, 3, 4] #Poly
-    #, 'epsilon': [0,0.001,0.01,0.05,0.1, 0.5, 1, 5, 10, 50, 100]
-  #  , 'tol': np.logspace(-4, 1, 5)
-#           }
+    , 'epsilon': [0,0.001,0.01,0.05,0.1, 0.5, 1, 5, 10, 50, 100]
+    , 'tol': np.logspace(-4, 1, 6)
+           }
 
 #SVM_Reg['gamma'] = np.append(SVM_Reg['gamma'],['auto','scale'])
 
 
-SVM_Reg = {'C':500, 'coef0':0, 'epsilon':0, 'gamma':'auto', 'tol':0.5623413251903491}
+#SVM_Reg = {'C':500, 'coef0':0, 'epsilon':0, 'gamma':'auto', 'tol':0.5623413251903491}
 
 
 
@@ -843,18 +856,18 @@ RFE_Reg = {'n_estimators': [int(x) for x in np.linspace(start=200,
             'criterion': ['squared_error', 'absolute_error', 'poisson'],
            'max_features': ['auto', 'sqrt', 'log2'],
            # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-           #'max_depth': [int(x) for x in np.linspace(1, 110,num=12)],
+           'max_depth': [int(x) for x in np.linspace(1, 110,num=12)],
            'bootstrap': [False, True],
-           # 'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)]
+            'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)]
            }
-RFE_Reg = {'n_estimators': 1000, 'max_features':'sqrt'}
+#RFE_Reg = {'n_estimators': 1000, 'max_features':'sqrt'}
 
 
-CatBoost_Reg = {'learning_rate': [0.01,0.03, 0.1,1],
-                'depth': [2,4, 6]  # DEFAULT is 6. Decrease value to prevent overfitting
+CatBoost_Reg = {'learning_rate': [0.01,0.03, 0.1,0.5,1],
+                'depth': [1,2,4, 6]  # DEFAULT is 6. Decrease value to prevent overfitting
     , 'l2_leaf_reg': [10,15,30,50] # Increase the value to prevent overfitting DEFAULT is 3
                 }
-CatBoost_Reg = {'depth':2,'l2_leaf_reg':15,'learning_rate':0.1}
+#CatBoost_Reg = {'depth':2,'l2_leaf_reg':15,'learning_rate':0.1}
 SVRLinear = {'C': [1,70,100,200,300,1000],
             # 'tol':  np.logspace(-20, 0,21),
             # 'epsilon': [ 0,0.0001,0.1, 0.2, 0.5, 1, 5, 10, 50, 70],
@@ -894,6 +907,25 @@ NN_Regression = {
 }
 
 
+
+##New Params 7buq7aqpdy - guid
+SVM_Reg = {'C': 50,
+           'kernel': 'linear'
+          ,'coef0': 100
+           }
+RFE_Reg = {'n_estimators': 700
+            ,'criterion': 'absolute_error',
+           'max_features': 'sqrt',
+           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
+           'max_depth': 100,
+           'bootstrap': False,
+            'min_samples_leaf': 0.1
+           }
+
+CatBoost_Reg = {'learning_rate': 0.5,
+                'depth': 2  # DEFAULT is 6. Decrease value to prevent overfitting
+    , 'l2_leaf_reg': 10 # Increase the value to prevent overfitting DEFAULT is 3
+                }
 
 grid_params = {}
 grid_params['SVC'] = SvmModel
@@ -938,8 +970,7 @@ alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
                 run_type='AL')
 
 #alg.analyse_data()
-alg.run_algorithm(initialisation='optimised', splits=3, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=10, kfold_repeats=2,
-                  #post_run = True
+alg.run_algorithm(initialisation='optimised', splits=5, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=False, kfold_repeats=5,
                   )
 alg.compare_query_changes()
 alg.similairty_scoring(method='gower', threshold=0.2, n_instances=10)

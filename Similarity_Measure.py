@@ -104,7 +104,7 @@ class Similarity():
         self.points = np.empty((0, unlabeled_data.shape[1] - 1), float)
         threshold_level = {}
 
-        while self.points.shape[0] <= n_instances:
+        while self.points.shape[0] < n_instances:
             result, results_index, similarity_scores, self.points = self._loop_function(threshold, unlabeled_data,
                                                                                         similarity_points,
                                                                            n_instances,converted_columns,

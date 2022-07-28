@@ -8,13 +8,13 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import confusion_matrix, precision_score
-from sklearn.model_selection import StratifiedKFold, GridSearchCV, KFold, RepeatedKFold, cross_val_score
+from sklearn.model_selection import StratifiedKFold, GridSearchCV, KFold, RepeatedKFold, cross_val_score, \
+    RandomizedSearchCV
 from sklearn.svm import SVC, SVR, LinearSVR
 from sklearn.utils import compute_class_weight
 
 from BaseModel import BaseModel
 from MSVR import MSVR
-
 
 
 class SvmModel(BaseModel):
@@ -294,6 +294,13 @@ class SVR_Model(BaseModel):
                                          verbose=verbose,
                                          scoring=scoring_type)
             self.svm_grid.fit(X_train, y_train)
+        elif initialisation == "randomized":
+            self.svm_grid = RandomizedSearchCV(self.deopt_classifier, param_distributions=params, n_iter=60, refit=True,
+                                               n_jobs=-1,
+                                               verbose=verbose,
+                                               cv=self.kfold,
+                                               scoring=scoring_type)
+            self.svm_grid.fit(X_train, y_train)
 
         # print("Best Estimator: \n{}\n".format(self.svm_grid.best_estimator_))
         # print("Best Parameters: \n{}\n".format(self.svm_grid.best_params_))
@@ -310,12 +317,12 @@ class SVR_Model(BaseModel):
         self.optimised_model = SVR()
         self.optimised_model.set_params(**params)
 
-        self.cv_score = cross_val_score(self.optimised_model, X_train, y_train, scoring=scoring_type, cv=self.kfold, n_jobs=-1)
+        self.cv_score = cross_val_score(self.optimised_model, X_train, y_train, scoring=scoring_type, cv=self.kfold,
+                                        n_jobs=-1)
         self.best_score = np.mean(self.cv_score)
-
+        print("SVR: ", self.best_score)
         return [self.optimised_model, self.best_score]
 
-    
     def fit(self, X_train, y_train):
         print('Training ', self.model_type)
         self.optimised_model.fit(X_train, y_train)
@@ -427,8 +434,13 @@ class RandomForestEnsemble(BaseModel):
                                         verbose=verbose,
                                         scoring=scoring_type)
             self.rf_grid.fit(X_train, y_train)
-
-
+        elif initialisation == "randomized":
+            self.rf_grid = RandomizedSearchCV(self.deopt_classifier, param_distributions=params, n_iter=60, refit=True,
+                                              n_jobs=-1,
+                                              verbose=verbose,
+                                              cv=self.kfold,
+                                              scoring=scoring_type)
+            self.rf_grid.fit(X_train, y_train)
 
         print("Best Estimator: \n{}\n".format(self.rf_grid.best_estimator_))
         print("Best Parameters: \n{}\n".format(self.rf_grid.best_params_))
@@ -442,12 +454,13 @@ class RandomForestEnsemble(BaseModel):
                   ):
 
         self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
-        self.optimised_model =  self.deopt_classifier = RandomForestRegressor(random_state=42)
+        self.optimised_model = self.deopt_classifier = RandomForestRegressor(random_state=42)
         self.optimised_model.set_params(**params)
 
-        self.cv_score = cross_val_score(self.optimised_model, X_train, y_train, scoring=scoring_type, cv=self.kfold, n_jobs=-1)
+        self.cv_score = cross_val_score(self.optimised_model, X_train, y_train, scoring=scoring_type, cv=self.kfold,
+                                        n_jobs=-1)
         self.best_score = np.mean(self.cv_score)
-
+        print("RFE: ", self.best_score)
         return [self.optimised_model, self.best_score]
 
     def fit(self, X_train, y_train):
@@ -588,18 +601,18 @@ class CatBoostReg(BaseModel):
 
         self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
         self.optimised_model = cb.CatBoostRegressor(loss_function='RMSE', random_seed=42, eval_metric=scoring
-                                                     # ,early_stopping_rounds=42
-                                                     , od_type="Iter"
-                                                     , od_wait=100
-                                                     )
+                                                    # ,early_stopping_rounds=42
+                                                    , od_type="Iter"
+                                                    , od_wait=100
+                                                    )
         self.optimised_model.set_params(**params)
 
-        self.cv_score = cross_val_score(self.optimised_model, X_train, y_train, scoring=scoring_type, cv=self.kfold, n_jobs=-1)
+        self.cv_score = cross_val_score(self.optimised_model, X_train, y_train, scoring=scoring_type, cv=self.kfold,
+                                        n_jobs=-1)
         self.best_score = np.mean(self.cv_score)
+        print("CatBoost: ", self.best_score)
 
         return [self.optimised_model, self.best_score]
-
-
 
     def fit(self, X_train, y_train):
         print('Training ', self.model_type)

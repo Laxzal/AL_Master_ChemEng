@@ -359,8 +359,10 @@ class Data_Load_Split(object):
 
     def update_x_y_data(self, additional_x, additional_y,
                         prev_x_data, prev_y_data):
-
-        self.X = np.vstack((self.X,prev_x_data, additional_x))
-        self.y = np.hstack((self.y,prev_y_data, additional_y)).astype(float)
-
+        if prev_x_data is not None and prev_y_data is not None:
+            self.X = np.vstack((self.X,prev_x_data, additional_x))
+            self.y = np.hstack((self.y,prev_y_data, additional_y)).astype(float)
+        else:
+            self.X = np.vstack((self.X, additional_x))
+            self.y = np.hstack((self.y, additional_y)).astype(float)
         return self.X, self.y

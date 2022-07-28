@@ -19,9 +19,9 @@ class ALDataBuild:
         self.output_dataframe = pd.DataFrame()
 
     def load_prev_gguid(self,save_path, recent_folder):
-        prev_gguid_path = os.path.join(save_path,recent_folder,'iteration_prev_gguid.csv')
+        prev_gguid_path = os.path.join(save_path,recent_folder,'iteration_prev_guid.csv')
         self.prev_gguid_df = pd.read_csv(prev_gguid_path)
-        self.recent_guid = list(self.prev_gguid_df['gguid'])[-1]
+        self.recent_guid = list(self.prev_gguid_df['guid'])[-1]
 
         return self.prev_gguid_df
 
@@ -264,8 +264,8 @@ class ALDataBuild:
                                                 right_on="Sample Name").reset_index(drop=True)
 
         ###Don't know why this is happpening but quick fix
-        self.merged_dataframe_AL['ethanol_dil'] = 0.00
-        self.merged_dataframe_random['ethanol_dil'] = 0.00
+        #self.merged_dataframe_AL['ethanol_dil'] = 0.00
+        #self.merged_dataframe_random['ethanol_dil'] = 0.00
         print(self.merged_dataframe_random)
 
     def load_x_y_prev_run(self, save_path, recent_folder):
@@ -303,7 +303,7 @@ class ALDataBuild:
     def remove_AL_from_unlabelled(self, X_val, X_val_columns_names,x_prev_index, count):
         X_val = pd.DataFrame(X_val, columns=X_val_columns_names)
 
-        if count<=1:
+        if count<1:
             temporary_AL_dataframe = self.merged_dataframe_AL.drop(columns=['original_index', 'sample_scoring',
                                                                             'Sample Name', 'Z-Average (d.nm)',
                                                                             'PdI', 'PdI Width (d.nm)'])
@@ -355,7 +355,7 @@ class ALDataBuild:
 
         return X_train, y_train
 
-    def remove_random_from_unlabelled(self, X_val, X_val_columns_names):
+    def remove_random_from_unlabelled(self, X_val, X_val_columns_names, x_prev_index, count):
         X_val = pd.DataFrame(X_val, columns=X_val_columns_names)
         if 'sample_scoring' in self.merged_dataframe_random.columns:
             temporary_random_dataframe = self.merged_dataframe_random.drop(columns=['original_index', 'sample_scoring',
@@ -366,11 +366,28 @@ class ALDataBuild:
                                                                                     'Sample Name', 'Z-Average (d.nm)',
                                                                                     'PdI', 'PdI Width (d.nm)'])
 
-        merge_dfs = X_val.merge(temporary_random_dataframe.drop_duplicates(), on=list(temporary_random_dataframe),
-                                how='left', indicator=True)
-        merge_dfs = merge_dfs[merge_dfs['_merge'] == 'left_only']
-        merge_dfs.drop(columns=['_merge'], inplace=True)
-        X_val = merge_dfs.to_numpy()
+
+
+        if count <= 1:
+            merge_dfs = X_val.merge(temporary_random_dataframe.drop_duplicates(), on=list(temporary_random_dataframe),
+                                    how='left', indicator=True)
+            merge_dfs = merge_dfs[merge_dfs['_merge'] == 'left_only']
+            merge_dfs.drop(columns=['_merge'], inplace=True)
+            print("No. of removed unlabelled formulations: ", X_val.shape[0] - merge_dfs.shape[0])
+            X_val = merge_dfs.to_numpy()
+        else:
+
+
+            X_val['original_index'] = x_prev_index
+            merge_dfs = X_val.merge(temporary_random_dataframe['original_index'], on=['original_index'], how='left',
+                                    indicator=True)
+            merge_dfs = merge_dfs[merge_dfs['_merge'] == 'left_only']
+            merge_dfs.drop(columns=['_merge','original_index'], inplace=True)
+            print("No. of removed unlabelled formulations: ", X_val.shape[0] - merge_dfs.shape[0])
+            X_val = merge_dfs.to_numpy()
+
+
+
 
         return X_val, X_val_columns_names
 

@@ -329,7 +329,8 @@ class CommitteeRegressor(ABC):
                                                                   params=grid_params[str(learner.model_type)],
                                                                   splits=self.splits,
                                                                   kfold_shuffle=self.kfold_shuffle,
-                                                                  scoring_type=self.scoring_type)
+                                                                  scoring_type=self.scoring_type,
+                                                                  initialisation = initialisation)
 
         return score_values
 
