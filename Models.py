@@ -569,9 +569,9 @@ class CatBoostReg(BaseModel):
             scoring = 'Poisson'
 
         self.deopt_classifier = cb.CatBoostRegressor(loss_function='RMSE', random_seed=42, eval_metric=scoring
-                                                     # ,early_stopping_rounds=42
-                                                     , od_type="Iter"
-                                                     , od_wait=100
+                                                     ,early_stopping_rounds=42
+                                                     #, od_type="Iter"
+                                                     #, od_wait=100
                                                      )
         # https://towardsdatascience.com/5-cute-features-of-catboost-61532c260f69
 
@@ -612,7 +612,7 @@ class CatBoostReg(BaseModel):
         self.best_score = np.mean(self.cv_score)
         print("CatBoost: ", self.best_score)
 
-        return [self.optimised_model, self.best_score]
+        return [self.optimised_model.get_params(), self.best_score]
 
     def fit(self, X_train, y_train):
         print('Training ', self.model_type)

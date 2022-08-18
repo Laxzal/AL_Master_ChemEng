@@ -203,43 +203,41 @@ class ALDataBuild:
                     # print(tdf_output)
 
         self.output_dataframe = self.output_dataframe[['original_index',
-                                                       'Concentration_1 (mM)',
-                                                       'Ratio_1',
-                                                       'Overall_Concentration_2',
-                                                       'Ratio_2',
-                                                       'Overall_Concentration_3',
-                                                       'Ratio_3',
-                                                       'Concentration_4',
-                                                       'Ratio_4',
-                                                       'Final_Vol',
-                                                       'Lipid_Vol_Pcnt',
-                                                       'Dispense_Speed_uls',
-                                                       'component_1_vol_stock',
-                                                       'component_2_vol_conc',
-                                                       'component_2_vol_stock',
-                                                       'component_3_vol_conc',
-                                                       'component_3_vol_stock',
-                                                       'ethanol_dil',
-                                                       'mw_cp_1',
-                                                       'heavy_atom_count_cp_1',
-                                                       'single_bond_cp_1',
-                                                       'double_bond_cp_1',
-                                                       'mw_cp_2',
-                                                       'h_bond_donor_count_cp_2',
-                                                       'h_bond_acceptor_count_cp_2',
-                                                       'heavy_atom_count_cp_2',
-                                                       'ssr_cp_2',
-                                                       'single_bond_cp_2',
-                                                       'double_bond_cp_2',
-                                                       'mw_cp_3',
-                                                       'h_bond_donor_count_cp_3',
-                                                       'h_bond_acceptor_count_cp_3',
-                                                       'heavy_atom_count_cp_3',
-                                                       'ssr_cp_3',
-                                                       'single_bond_cp_3',
-                                                       'double_bond_cp_3',
+                                                                    'Concentration_1 (mM)',
+                                                                    'Ratio_1',
+                                                                    'Overall_Concentration_2',
+                                                                    'Ratio_2',
+                                                                    'Concentration_4',
+                                                                    'Ratio_4',
+                                                                    'Final_Vol',
+                                                                    'Lipid_Vol_Pcnt',
+                                                                    'Dispense_Speed_uls',
+                                                                    'mw_cp_1',
+                                                                    'xlogp_cp_1',
+                                                                    'complexity_cp_1',
+                                                                    'heavy_atom_count_cp_1',
+                                                                    'single_bond_cp_1',
+                                                                    'double_bond_cp_1',
+                                                                    'mw_cp_2',
+                                                                    'h_bond_acceptor_count_cp_2',
+                                                                    'xlogp_cp_2',
+                                                                    'complexity_cp_2',
+                                                                    'heavy_atom_count_cp_2',
+                                                                    'tpsa_cp_2',
+                                                                    'ssr_cp_2',
+                                                                    'single_bond_cp_2',
+                                                                    'double_bond_cp_2',
+                                                                    'aromatic_bond_cp_2',
                                                        'sample_scoring']]
+        #I have no idea where this issue came from but it has been persistent throughout
+        self.output_dataframe.loc[self.output_dataframe['mw_cp_2'] == 430.6999999999999, 'mw_cp_2'] = 430.7
+        self.output_dataframe.loc[self.output_dataframe['mw_cp_2'] == 386.699999999999, 'mw_cp_2'] = 386.7
+        self.output_dataframe.loc[self.output_dataframe['mw_cp_2'] == 386.6999999999999, 'mw_cp_2'] = 386.7
+        self.output_dataframe.loc[self.output_dataframe['complexity_cp_1'] == 856.9999999999999, 'complexity_cp_1'] = 857
 
+        self.output_dataframe.loc[self.output_dataframe['Ratio_2'] == 0.44999999999999996, 'Ratio_2'] = 0.45
+        self.output_dataframe.loc[self.output_dataframe['Ratio_2'] == 0.4499999999999999, 'Ratio_2'] = 0.45
+        self.output_dataframe = np.round(self.output_dataframe, 2)
         self.output_dataframe.dropna(inplace=True)
         self.random_dataframe.dropna(how='all', inplace=True)
         self.random_dataframe.drop(columns=['original_index'], inplace=True)
@@ -273,6 +271,8 @@ class ALDataBuild:
         path_of_file = os.path.join(save_path, recent_iteration_run, "Added_Data.csv")
         if os.path.exists(path_of_file):
             prev_x_y_df = pd.read_csv(path_of_file)
+            prev_x_y_df['mw_cp_2'] = prev_x_y_df['mw_cp_2'].round(2)
+            prev_x_y_df.loc[prev_x_y_df['Ratio_2'] == 0.44999999999999996] = 0.45
             prev_x_df = prev_x_y_df.drop(columns=['Z-Average (d.nm)']).to_numpy()
             prev_y_df = prev_x_y_df['Z-Average (d.nm)'].to_numpy().reshape(-1)
 
@@ -290,11 +290,16 @@ class ALDataBuild:
         path_of_file = os.path.join(save_path, recent_iteration_run, "Unlabeled_Data.csv")
         if os.path.exists(path_of_file):
             X_val_df = pd.read_csv(path_of_file)
+            X_val_df.loc[X_val_df['Ratio_2'] == 0.44999999999999996] = 0.45
             if 'original_index' in X_val_df.columns:
                 X_val_df.drop(columns=['original_index'], inplace=True)
             if 'Unnamed: 0' in X_val_df:
                 x_val_prev_index = X_val_df['Unnamed: 0'].copy()
                 X_val_df.drop(columns=['Unnamed: 0'], inplace=True)
+            print("Ingest X_VAL_PREV_RUN")
+            print(X_val_df['mw_cp_2'].value_counts())
+
+
             X_val = X_val_df.to_numpy()
             X_val_column_names = X_val_df.columns
 

@@ -16,44 +16,34 @@ class MinMaxScaling(object):
     def fit_scale(self, X_train, X_test, X_val, converted_columns):
         temp_stack = np.vstack((X_train, X_test, X_val))
         # TODO
-        numerical_data = temp_stack[:, [not elem for elem in converted_columns]]
-        categorical_data = temp_stack[:, converted_columns]
-        self.scaler.fit(numerical_data)
+        #numerical_data = temp_stack[:, [not elem for elem in converted_columns]]
+        #categorical_data = temp_stack[:, converted_columns]
+        self.scaler.fit(temp_stack)
 
     def transform_scale(self, X_train, X_val, X_test, converted_columns):
         # TODO Check whether I should pipeline this rather than manually
-        numerical_x_train = X_train[:, [not elem for elem in converted_columns]]
-        categorical_x_train = X_train[:, converted_columns]
-        numerical_x_train_transformed = self.scaler.transform(numerical_x_train)
-        X_train = np.concatenate((numerical_x_train_transformed, categorical_x_train), axis=1)
+        # numerical_x_train = X_train[:, [not elem for elem in converted_columns]]
+        # categorical_x_train = X_train[:, converted_columns]
+        #numerical_x_train_transformed = self.scaler.transform(numerical_x_train)
 
-        numerical_x_val = X_val[:, [not elem for elem in converted_columns]]
-        categorical_x_val = X_val[:, converted_columns]
-        numerical_x_val_transformed = self.scaler.transform(numerical_x_val)
-        X_val = np.concatenate((numerical_x_val_transformed, categorical_x_val), axis=1)
+        #X_train = np.concatenate((numerical_x_train_transformed, categorical_x_train), axis=1)
+        X_train = self.scaler.transform(X_train)
 
-        numerical_x_test = X_test[:, [not elem for elem in converted_columns]]
-        categorical_x_test = X_test[:, converted_columns]
-        numerical_x_test_transformed = self.scaler.transform(numerical_x_test)
-        X_test = np.concatenate((numerical_x_test_transformed, categorical_x_test), axis=1)
+        X_val = self.scaler.transform(X_val)
+
+        X_test = self.scaler.transform(X_test)
+
 
         return X_train, X_val, X_test
 
     def inverse(self, X_train, X_val, X_test, converted_columns):
-        numerical_x_train = X_train[:, [not elem for elem in converted_columns]]
-        categorical_x_train = X_train[:, converted_columns]
-        numerical_x_train_transformed = self.scaler.inverse_transform(numerical_x_train)
-        X_train = np.concatenate((numerical_x_train_transformed, categorical_x_train), axis=1)
 
-        numerical_x_val = X_val[:, [not elem for elem in converted_columns]]
-        categorical_x_val = X_val[:, converted_columns]
-        numerical_x_val_transformed = self.scaler.inverse_transform(numerical_x_val)
-        X_val = np.concatenate((numerical_x_val_transformed, categorical_x_val), axis=1)
+        X_train = self.scaler.inverse_transform(X_train)
+        X_val = self.scaler.inverse_transform(X_val)
+        X_test = self.scaler.inverse_transform(X_test)
 
-        numerical_x_test = X_test[:, [not elem for elem in converted_columns]]
-        categorical_x_test = X_test[:, converted_columns]
-        numerical_x_test_transformed = self.scaler.inverse_transform(numerical_x_test)
-        X_test = np.concatenate((numerical_x_test_transformed, categorical_x_test), axis=1)
+
+
         return X_train, X_val, X_test
 
 

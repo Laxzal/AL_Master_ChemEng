@@ -36,7 +36,9 @@ from TrainModel import TrainModel
 from confusion_matrix_custom import make_confusion_matrix
 from build_al_data_file import ALDataBuild
 from mrmr_algorithm import MRMR
-
+from scipy.stats import loguniform
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 """'
 
 GATHER DATA
@@ -109,6 +111,8 @@ class Algorithm(object):
 
     def __init__(self, model_object, model_type,
                  save_path: Optional[str],
+                 al_folder: str,
+                 random_folder: str,
                  scoring_type: str,
                  hide: str = None,
                  select: Callable = SelectionFunction.entropy_sampling,
@@ -165,6 +169,9 @@ class Algorithm(object):
         self.count_of_iter = None
         self.prev_gguid_df = None
 
+        self.al_folder = al_folder
+        self.random_folder = random_folder
+
         ####Clustering
         self.best_k = None
         self.results = None
@@ -188,7 +195,7 @@ class Algorithm(object):
                 print("Directory ", dirName, " already exists")
         elif self.post_run == True:
             if self.run_type == 'AL':
-                al_folder = 'AL_Output'
+                al_folder = self.al_folder
                 save_folder = os.path.join(self.save_path, al_folder)
                 self.input_folder = save_folder
                 list_of_folders = [subdir for root, subdir,rest in os.walk(save_folder)]
@@ -198,11 +205,17 @@ class Algorithm(object):
                 list_of_compl_folders = re.findall(r"(?<=')(\S+_\d+_\d+_complete_iteration_\d+)", string)
 
                 if len(list_of_compl_folders) != 0:
-                    self.sorted_list_of_compl_folders = sorted(list_of_compl_folders, key=lambda  x: int("".join([i for i in x if i.isdigit()])),
-                                                      reverse=True)
+                    #This appears to be broken at the moment
+                    #self.sorted_list_of_compl_folders = sorted(list_of_compl_folders, key=lambda  x: int("".join([i for i in x if i.isdigit()])),
+                                                      #reverse=True)
+                    self.sorted_list_of_compl_folders = sorted(list_of_compl_folders,
+                                                               key=lambda x: int(re.search(r'\d+$',x).group()),
+                                                               reverse=True)
+                    self.count_of_iter = (len(list_of_compl_folders) - 1)
                 else:
                     self.sorted_list_of_compl_folders = None
-                self.count_of_iter = len(list_of_compl_folders) - 1
+                    self.count_of_iter = 0
+
 
 
                 dirName = str(self.uuid) + '_' + str(self.today_date_time)+str("_iteration_")+str(self.count_of_iter+1)
@@ -214,7 +227,7 @@ class Algorithm(object):
                 except FileExistsError:
                     print("Directory ", dirName, " already exists")
             elif self.run_type == 'Random':
-                rand_folder = 'Random_Output'
+                rand_folder = self.random_folder
                 save_folder = os.path.join(self.save_path,rand_folder)
                 self.input_folder = save_folder
                 list_of_folders = [subdir for root, subdir,rest in os.walk(save_folder)]
@@ -223,11 +236,16 @@ class Algorithm(object):
                 string = ''.join(str(folder) for folder in list_of_folders)
                 list_of_compl_folders = re.findall(r"(?<=')(\S+_\d+_\d+_complete_iteration_\d+)", string)
                 if len(list_of_compl_folders) != 0:
-                    self.sorted_list_of_compl_folders = sorted(list_of_compl_folders, key=lambda  x: int("".join([i for i in x if i.isdigit()])),
-                                                      reverse=True)
+                    #This appears to be broken at the moment
+                    #self.sorted_list_of_compl_folders = sorted(list_of_compl_folders, key=lambda  x: int("".join([i for i in x if i.isdigit()])),
+                                                      #reverse=True)
+                    self.sorted_list_of_compl_folders = sorted(list_of_compl_folders,
+                                                               key=lambda x: int(re.search(r'\d+$',x).group()),
+                                                               reverse=True)
+                    self.count_of_iter = (len(list_of_compl_folders) - 1)
                 else:
                     self.sorted_list_of_compl_folders = None
-                self.count_of_iter = len(list_of_compl_folders)
+                    self.count_of_iter = 0
 
 
 
@@ -275,9 +293,16 @@ class Algorithm(object):
         self.X_train, self.X_test, self.y_train, self.y_test = data_load_split.split_train_test()
 
         if self.post_run==True:
+            if self.run_type == 'AL':
+                folder_formulations = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/'
+                folder_formulations = os.path.join(folder_formulations,self.al_folder)
+            elif self.run_type == 'Random':
+                folder_formulations = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/'
+                folder_formulations = os.path.join(folder_formulations,self.random_folder)
             more_data = ALDataBuild(folder_dls=r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Input',
-                                    folder_formulations=r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output')
-            self.prev_gguid_df = more_data.load_prev_gguid(save_path=self.input_folder,recent_folder=self.sorted_list_of_compl_folders[-1])
+                                    folder_formulations=folder_formulations)
+            #TODO Check out the sorted list of compl folders issue
+            self.prev_gguid_df = more_data.load_prev_gguid(save_path=self.input_folder,recent_folder=self.sorted_list_of_compl_folders[0])
             more_data.collect_csv()
             more_data.clean_dls_data()
             more_data.filter_out_D_iteration()
@@ -291,9 +316,9 @@ class Algorithm(object):
                 self.X_train_prev, self.y_train_prev = None, None
             else:
                 self.X_train_prev, self.y_train_prev = more_data.load_x_y_prev_run(save_path =self.input_folder
-                                                                                   ,recent_folder=self.sorted_list_of_compl_folders[-1])
+                                                                                   ,recent_folder=self.sorted_list_of_compl_folders[0])
                 self.X_val, self.columns_x_val, self.x_val_prev_index = more_data.load_x_val_prev_run(save_path =self.input_folder ,
-                                                                               recent_folder= self.sorted_list_of_compl_folders[-1])
+                                                                               recent_folder= self.sorted_list_of_compl_folders[0])
 
             if self.run_type == 'AL':
                 self.X_val, self.columns_x_val = more_data.remove_AL_from_unlabelled(X_val=self.X_val,
@@ -350,11 +375,15 @@ class Algorithm(object):
         ###
 
         random.seed(42) #This shhould ensure shuffling is always the same
-        if self.limit > 0:
-            shuffle(self.X_val)
-            self.X_val = self.X_val[:self.limit]
-        else:
-            shuffle(self.X_val)
+        #shuffle seems to change values...
+        #np.random.shuffle() may be better.
+        #But why bother shuffling...
+        #https: // stackoverflow.com / questions / 44917606 / python - why - does - random - shuffle - change - the - array
+        # if self.limit > 0:
+        #     shuffle(self.X_val)
+        #     self.X_val = self.X_val[:self.limit]
+        # else:
+        #     np.random.shuffle(self.X_val)
 
         if isinstance(self.n_instances, int):
             self.n_instances = self.n_instances
@@ -367,9 +396,10 @@ class Algorithm(object):
 
 
 
+        test = pd.DataFrame(self.X_val, columns=self.columns_x_val)
 
-
-
+        print(test.info())
+        print(test['mw_cp_2'].value_counts())
 
 
 
@@ -409,6 +439,7 @@ class Algorithm(object):
                 self.scores = self.committee_models.optimised_comittee(params=grid_params)
             self.committee_models.fit_data()
             self.score_data = self.committee_models.score()
+            self.rmse_score_data = self.committee_models.rmse_scoring()
             self.selection_probas_val, *rest = self.committee_models.query(self.committee_models,
                                                                            n_instances=self.n_instances)
             # test = batch_sampling(models=self.committee_models, X=self.X_val, X_labelled=self.X_train,
@@ -606,6 +637,8 @@ class Algorithm(object):
 
         elif self.regression == 1:
             df_scores_data = pd.DataFrame.from_dict(self.score_data, orient='index').T
+            df_scores_data_rmse = pd.DataFrame.from_dict(self.rmse_score_data, orient='index').T
+            df_scores_data = pd.concat([df_scores_data, df_scores_data_rmse])
             df_scores_data.to_excel(writer, sheet_name='Regression_Score_Data')
             if os.name == 'posix':
                 os.chdir(regression_output_path_1)
@@ -749,7 +782,10 @@ class Algorithm(object):
                                                        converted_columns=self.converted_columns)
         unlabeled_data= pd.DataFrame(reversed_x_val, columns=self.columns_x_val)
         unlabeled_data['original_index'] = self.selection_probas_val[0]
-
+        unlabeled_data.loc[unlabeled_data.Ratio_2 == 0.44999999999999996] = 0.45
+        print(unlabeled_data.info())
+        print(unlabeled_data['mw_cp_2'].unique())
+        print(unlabeled_data['mw_cp_2'].value_counts())
         unlabeled_data.to_csv(os.path.join(self.save_path, "Unlabeled_Data.csv"), index=True)
 
         #Need
@@ -777,10 +813,10 @@ class Algorithm(object):
                     added_data = pd.DataFrame(self.X_train_random, columns=self.columns_x_val)
                     added_data['Z-Average (d.nm)'] = self.y_train_random.reshape(-1, 1)
                     added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
-            temp_new_guid = pd.DataFrame([np.array((self.count_of_iter, self.uuid))],columns=['iteration', 'guid'])
+            temp_new_guid = pd.DataFrame([np.array((self.count_of_iter+1, self.uuid))],columns=['iteration', 'guid'])
         elif self.post_run == False:
             print("First run - No iteration data")
-            temp_new_guid = pd.DataFrame([np.array((self.count_of_iter, self.uuid))], columns=['iteration', 'guid'])
+            temp_new_guid = pd.DataFrame([np.array(((0), self.uuid))], columns=['iteration', 'guid'])
         if self.prev_gguid_df is not None:
             df2 = pd.concat([self.prev_gguid_df, temp_new_guid]).reset_index(drop=True)
         else:
@@ -824,48 +860,46 @@ CBModel = {
     #    'border_count': [32, 5, 10, 20, 50, 100, 200]
 }
 # https://www.vebuso.com/2020/03/svm-hyperparameter-tuning-using-gridsearchcv/
-SVM_Reg = {'C': [0.0001,0.01,0.1,1,5,10,50, 100, 200,500, 1000],  # np.logspace(-6, 3,10), #*
-           'gamma': ['auto','scale'], #np.logspace(-4, 2, 7),  # Kernel coefficient for rbf, poly & sig
+SVM_Reg = {'C': np.logspace(-4, 3,8),
+           #'gamma': np.logspace(-9, 3, 13), #np.logspace(-4, 2, 7),  # Kernel coefficient for rbf, poly & sig
            # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
            'kernel': [  'rbf',
            #    'poly',
                'sigmoid',
                'linear'  # *
            ]
-           ,'coef0': [0,0.0001,0.001,0.01,0.1, 1,10,20,100] #Independent term for poly & sig
+           #,'coef0': [0,0.0001,0.001,0.01,0.1, 1,10,20,100] #Independent term for poly & sig
            #, 'degree': [1,2, 3, 4] #Poly
-    , 'epsilon': [0,0.001,0.01,0.05,0.1, 0.5, 1, 5, 10, 50, 100]
-    , 'tol': np.logspace(-4, 1, 6)
+    , 'epsilon': np.logspace(-3,1,5) #http://adrem.uantwerpen.be/bibrem/pubs/IJCNN2007.pdf https://stackoverflow.com/questions/69669827/tuning-of-hyperparameters-of-svr
+    #, 'tol': np.logspace(-4, 1, 6)
            }
 
-#SVM_Reg['gamma'] = np.append(SVM_Reg['gamma'],['auto','scale'])
-
-
-#SVM_Reg = {'C':500, 'coef0':0, 'epsilon':0, 'gamma':'auto', 'tol':0.5623413251903491}
 
 
 
 
 
+max_depth = [int(x) for x in np.linspace(1, 110,num=12)]
+max_depth.append(None)
 
 
 
 RFE_Reg = {'n_estimators': [int(x) for x in np.linspace(start=200,
-                                                        stop=1000,
-                                                        num=9)],
-            'criterion': ['squared_error', 'absolute_error', 'poisson'],
-           'max_features': ['auto', 'sqrt', 'log2'],
-           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-           'max_depth': [int(x) for x in np.linspace(1, 110,num=12)],
+                                                        stop=2000,
+                                                        num=10)],
+            'criterion': ['squared_error'],
+           'max_features': [None, 'sqrt', 'log2'],
+           'max_depth': max_depth,
            'bootstrap': [False, True],
-            'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)]
+            'min_samples_leaf': [float(x) for x in np.arange(0.1, 0.6, 0.1)],
+           'min_samples_split': [2,5,10]
            }
 #RFE_Reg = {'n_estimators': 1000, 'max_features':'sqrt'}
 
 
-CatBoost_Reg = {'learning_rate': [0.01,0.03, 0.1,0.5,1],
-                'depth': [1,2,4, 6]  # DEFAULT is 6. Decrease value to prevent overfitting
-    , 'l2_leaf_reg': [10,15,30,50] # Increase the value to prevent overfitting DEFAULT is 3
+CatBoost_Reg = {'learning_rate': np.logspace(-4,2,7),
+                'depth': [1,2,4,5, 6]  # DEFAULT is 6. Decrease value to prevent overfitting
+    , 'l2_leaf_reg': [3,5,9,10,15,30,50] # Increase the value to prevent overfitting DEFAULT is 3
                 }
 #CatBoost_Reg = {'depth':2,'l2_leaf_reg':15,'learning_rate':0.1}
 SVRLinear = {'C': [1,70,100,200,300,1000],
@@ -908,24 +942,60 @@ NN_Regression = {
 
 
 
-##New Params 7buq7aqpdy - guid
-SVM_Reg = {'C': 50,
-           'kernel': 'linear'
-          ,'coef0': 100
-           }
-RFE_Reg = {'n_estimators': 700
-            ,'criterion': 'absolute_error',
-           'max_features': 'sqrt',
-           # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-           'max_depth': 100,
-           'bootstrap': False,
-            'min_samples_leaf': 0.1
-           }
+# ##New Params 7buq7aqpdy - guid
+# SVM_Reg = {'C': 50,
+#            'kernel': 'linear'
+#           ,'coef0': 100
+#            }
+# RFE_Reg = {'n_estimators': 700
+#             ,'criterion': 'absolute_error',
+#            'max_features': 'sqrt',
+#            # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
+#            'max_depth': 100,
+#            'bootstrap': False,
+#             'min_samples_leaf': 0.1
+#            }
+#
+# CatBoost_Reg = {'learning_rate': 0.5,
+#                 'depth': 2  # DEFAULT is 6. Decrease value to prevent overfitting
+#     , 'l2_leaf_reg': 10 # Increase the value to prevent overfitting DEFAULT is 3
+#                 }
 
-CatBoost_Reg = {'learning_rate': 0.5,
-                'depth': 2  # DEFAULT is 6. Decrease value to prevent overfitting
-    , 'l2_leaf_reg': 10 # Increase the value to prevent overfitting DEFAULT is 3
-                }
+
+
+###Reduced Features - New Params
+# SVM_Reg = {'C': 10
+#          ,'epsilon': 0.001
+#           }
+#
+# RFE_Reg = {'n_estimators': 800,
+#             'max_features': 'log2',
+#             # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
+#             'max_depth': 90,
+#             'bootstrap': False,
+#              'min_samples_leaf': 0.1
+#             }
+# CatBoost_Reg = {'learning_rate': 0.1,
+#                  'depth': 2  # DEFAULT is 6. Decrease value to prevent overfitting
+#      , 'l2_leaf_reg': 5 # Increase the value to prevent overfitting DEFAULT is 3
+#                 ,'verbose': False
+#                  }
+###Reduced Features - New Params
+SVM_Reg = {'C': 10
+          }
+
+RFE_Reg = {'n_estimators': 600,
+            'max_features': 'sqrt',
+            'max_depth': 100,
+            'bootstrap': False,
+           'min_samples_split': 10,
+             'min_samples_leaf': 0.1
+            }
+CatBoost_Reg = {'learning_rate': 0.1,
+                 'depth': 6  # DEFAULT is 6. Decrease value to prevent overfitting
+     , 'l2_leaf_reg': 5 # Increase the value to prevent overfitting DEFAULT is 3
+                ,'verbose': False
+                 }
 
 grid_params = {}
 grid_params['SVC'] = SvmModel
@@ -941,31 +1011,43 @@ grid_params['NN_Reg'] = NN_Regression
 
 save_path = regression_output_path_1
 alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
-                scoring_type='r2', save_path=save_path, split_ratio=0.30,
-                column_removal_experiment=['xlogp_cp_1','xlogp_cp_2','xlogp_cp_3',
-                                           'aromatic_bond_cp_2','complexity_cp_3',
-                                           'complexity_cp_2','complexity_cp_1','Final_Concentration',
-                                           'final_lipid_volume','component_1_vol','component_2_vol',
+                scoring_type='r2', save_path=save_path, al_folder='AL_Output',
+                random_folder='Random_Output',
+
+                split_ratio=0.30,
+                column_removal_experiment=[#'xlogp_cp_1','xlogp_cp_2',
+                                                                     'xlogp_cp_3',
+                                           #'aromatic_bond_cp_2',
+                                           'complexity_cp_3',
+                                           #'complexity_cp_2','complexity_cp_1',
+                                           'Final_Concentration',
+                                           'final_lipid_volume','component_1_vol','component_2_vol','component_2_vol_conc',
                                            'component_3_vol','component_4_vol','component_1_vol_conc',
-                                           'tpsa_cp_3','tpsa_cp_2',
-                                           #'heavy_atom_count_cp_1','heavy_atom_count_cp_2','heavy_atom_count_cp_3',
+                                           'component_3_vol_conc',
+                                           'tpsa_cp_3',
+                                           #'tpsa_cp_2',
+                                           'Ratio_3','Req_Weight_3','Overall_Concentration_3','mw_cp_3',
+                                           #'heavy_atom_count_cp_1','heavy_atom_count_cp_2',
+                                           'heavy_atom_count_cp_3',
                                            #'single_bond_cp_1','double_bond_cp_1',
                                            #'single_bond_cp_2','double_bond_cp_2',
-                                           #'single_bond_cp_3','double_bond_cp_3',
-                                           #'h_bond_donor_count_cp_2','h_bond_acceptor_count_cp_2',
-                                           #'h_bond_donor_count_cp_3','h_bond_acceptor_count_cp_3',
-                                           #'ssr_cp_2','ssr_cp_3',
+                                           'single_bond_cp_3','double_bond_cp_3',
+                                           'h_bond_donor_count_cp_2',
+                    # 'h_bond_acceptor_count_cp_2',
+                                           'h_bond_donor_count_cp_3','h_bond_acceptor_count_cp_3',
+                                           #'ssr_cp_2',
+                                           'ssr_cp_3',
                                             'Req_Weight_1', 'Ethanol_1',
                                             'Req_Weight_2', 'Ethanol_2',
                                             'Req_Weight_3',
-                                            'Req_Weight_4', 'Ethanol_4'
-                                            #'ethanol_dil',
-                                            #'component_1_vol_stock',
-                                            #'component_2_vol_stock',
-                                            #'component_3_vol_stock'
+                                            'Req_Weight_4', 'Ethanol_4',
+                                            'ethanol_dil',
+                                            'component_1_vol_stock',
+                                            'component_2_vol_stock',
+                                            'component_3_vol_stock'
 
                                            ],
-                MRMR_K_Value=25
+                MRMR_K_Value=10
                 ,post_run=True,
                 run_type='AL')
 
@@ -980,3 +1062,5 @@ alg.master_file()
 alg.export_modified_unlabelled_data_and_additional_labeled_and_guid()
 alg.change_folder_name_complete()
 
+#https://medium.com/analytics-vidhya/mae-mse-rmse-coefficient-of-determination-adjusted-r-squared-which-metric-is-better-cd0326a5697e
+#https://towardsdatascience.com/mrmr-explained-exactly-how-you-wished-someone-explained-to-you-9cf4ed27458b

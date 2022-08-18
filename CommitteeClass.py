@@ -275,6 +275,7 @@ class CommitteeRegressor(ABC):
         self.query_strategy = query_strategy
 
         self.score_query = self.score_parameters[self.scoring_type]
+        self.score_rmse_query = self.score_parameters['neg_mean_squared_error']
 
     def __len__(self) -> int:
         return len(self.learner_list)
@@ -397,6 +398,28 @@ class CommitteeRegressor(ABC):
             scores[str(learner.model_type) + '_test'] = np.array([str(self.scoring_type), test_strat])
 
         return scores
+
+    def rmse_scoring(self, **predict_kwargs):
+        train_vote = self.vote(self.X_training, **predict_kwargs)
+        test_vote = self.vote(self.X_testing, **predict_kwargs)
+        rmse_scores = {}
+
+        for learner_idx, learner in enumerate(self.learner_list):
+            train_strat = self.score_rmse_query(self.y_training, train_vote[:, learner_idx])
+            print("X training data scoring")
+            print("Model: ", learner.model_type)
+            print("Scoring Strategy: ", str('MSE'))
+            print("Score: ", train_strat)
+            rmse_scores[str(learner.model_type) + '_train'] = np.array([str('MSE'), train_strat])
+        for learner_idx, learner in enumerate(self.learner_list):
+            test_strat = self.score_rmse_query(self.y_testing, test_vote[:, learner_idx])
+            print("X testing data scoring")
+            print("Model: ", learner.model_type)
+            print("Scoring Strategy: ", str('MSE'))
+            print("Score: ", test_strat)
+            rmse_scores[str(learner.model_type) + '_test'] = np.array([str('MSE'), test_strat])
+
+        return rmse_scores
 
     def predictionvsactual(self, save_path, plot):
         for learner_idx, learner in enumerate(self.learner_list):

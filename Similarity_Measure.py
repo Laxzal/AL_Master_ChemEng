@@ -12,8 +12,12 @@ class Similarity():
         self.points = None
 
     def _loop_function(self, threshold, unlabeled_data, similarity_points, n_instances, converted_columns, threshold_level):
+        now = datetime.now()
+
+        current_time = now.strftime("%H:%M:%S")
+        print(f" {current_time} - Starting Gower Scoring for {threshold}")
         for index, value in unlabeled_data.iterrows():
-            if self.points.shape[0] <= n_instances:
+            if self.points.shape[0] < n_instances:
                 convert_series = value.to_frame().T
                 convert_series['original_index'] = convert_series['original_index'].astype(int)
                 formulation_id = convert_series['original_index'].values[0]
@@ -35,7 +39,7 @@ class Similarity():
                         similarity_points[formulation_id] = similarity
                         threshold_level[formulation_id] = threshold
                 else:
-                    similarity_points[formulation_id] = 1.0
+                    similarity_points[formulation_id] = 0
                     self.points = np.append(self.points, data, axis=0)
                     threshold_level[formulation_id] = threshold
                     print(str(index) + "/" + str(unlabeled_data.shape[0]) + " - Formulation ID: " + str(

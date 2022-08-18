@@ -237,17 +237,29 @@ class Data_Load_Split(object):
                 x_table = self.dum.drop(['PdI Width (d.nm)', 'PdI', 'Z-Average (d.nm)'],
                                         axis=1).reset_index(drop=True)
             self.X = x_table.values
-        #TODO Need to fix this at some point when I do dummy grouping again
-        if self.dummation_occured == 1:
-            for i in x_table.columns:
-                if (x_table[str(i)].isin([0, 1]).all()) == True:
-                    self.columns_converted.append(True)
-                else:
-                    self.columns_converted.append(False)
-        else:
-            for i in range(len(x_table.columns)):
-                self.columns_converted.append(False)
+        # #TODO Need to fix this at some point when I do dummy grouping again
+        # if self.dummation_occured == 1:
+        #     for i in x_table.columns:
+        #         if (x_table[str(i)].isin([0, 1]).all()) == True:
+        #             self.columns_converted.append(True)
+        #         else:
+        #             self.columns_converted.append(False)
+        # else:
+        #     for i in range(len(x_table.columns)):
+        #         self.columns_converted.append(False)
 
+        for i in x_table.columns:
+            if (x_table[str(i)].between(0,1).all()) == True:
+                self.columns_converted.append(True)
+            else:
+                self.columns_converted.append(False)
+        self.zero_one_columns = []
+        self.min_max_scale_columns = []
+        for i in x_table.columns:
+            if (x_table[str(i)].between(0, 1).all()) == True:
+                self.zero_one_columns.append(str(i))
+            else:
+                self.min_max_scale_columns.append(str(i))
 
         return self.X
 

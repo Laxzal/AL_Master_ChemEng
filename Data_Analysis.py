@@ -166,20 +166,23 @@ class Data_Analyse(object):
         print(vif)
         return vif
 
-    def sweet_viz(self, data, feature_names,target: Optional[str]=None, save_path: Optional[str]=None):
+    def sweet_viz(self, data, feature_names, target: Optional[str] = None, save_path: Optional[str] = None):
 
         if isinstance(data, pd.DataFrame):
             temp_def = data
         else:
-            temp_def =  pd.DataFrame(data,columns=feature_names)
-        advert_report = sv.analyze(temp_def,target_feat=target)
+            temp_def = pd.DataFrame(data, columns=feature_names)
+
+        feature_config = sv.FeatureConfig(force_num=list(temp_def.columns))
+        advert_report = sv.analyze(temp_def, target_feat=target,
+                                   feat_cfg=feature_config)
 
         file_name = 'data_x_sweet_viz.html'
         file_name = os.path.join(save_path, file_name)
         advert_report.show_html(filepath=file_name,
-                 open_browser=True,
-                 layout='widescreen',
-                 scale=None)
+                                open_browser=True,
+                                layout='widescreen',
+                                scale=None)
 
     def pandas_profiling(self, data, save_path):
         prof = ProfileReport(data)
