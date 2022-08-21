@@ -309,6 +309,17 @@ class SVR_Model(BaseModel):
         self.optimised_model = self.svm_grid.best_estimator_
         return [self.optimised_model, self.svm_grid.best_score_]
 
+    def default_model(self, X_train: np.ndarray = None, y_train: np.ndarray = None, params: dict = None, splits: int = 5,
+                  kfold_shuffle: int = 1, scoring_type: str = 'explained_variance', verbose: int = 0
+                  ):
+        self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
+        self.optimised_model = SVR()
+        self.cv_score = cross_val_score(self.optimised_model, X_train, y_train, scoring=scoring_type, cv=self.kfold,
+                                        n_jobs=-1)
+        self.best_score = np.mean(self.cv_score)
+        print("SVR: ", self.best_score)
+        return [self.optimised_model, self.best_score]
+
     def optimised(self, X_train: np.ndarray = None, y_train: np.ndarray = None, params: dict = None, splits: int = 5,
                   kfold_shuffle: int = 1, scoring_type: str = 'explained_variance', verbose: int = 0
                   ):
@@ -449,12 +460,23 @@ class RandomForestEnsemble(BaseModel):
         self.optimised_model = self.rf_grid.best_estimator_
         return [self.optimised_model, self.rf_grid.best_score_]
 
+    def default_model(self, X_train: np.ndarray = None, y_train: np.ndarray = None, params: dict = None, splits: int = 5,
+                  kfold_shuffle: int = 1, scoring_type: str = 'explained_variance', verbose: int = 0
+                  ):
+        self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
+        self.optimised_model = RandomForestRegressor(random_state=42)
+        self.cv_score = cross_val_score(self.optimised_model, X_train, y_train, scoring=scoring_type, cv=self.kfold,
+                                        n_jobs=-1)
+        self.best_score = np.mean(self.cv_score)
+        print("RFE: ", self.best_score)
+        return [self.optimised_model, self.best_score]
+
     def optimised(self, X_train: np.ndarray = None, y_train: np.ndarray = None, params: dict = None, splits: int = 5,
                   kfold_shuffle: int = 1, scoring_type: str = 'explained_variance', verbose: int = 0
                   ):
 
         self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
-        self.optimised_model = self.deopt_classifier = RandomForestRegressor(random_state=42)
+        self.optimised_model = RandomForestRegressor(random_state=42)
         self.optimised_model.set_params(**params)
 
         self.cv_score = cross_val_score(self.optimised_model, X_train, y_train, scoring=scoring_type, cv=self.kfold,
@@ -565,8 +587,8 @@ class CatBoostReg(BaseModel):
         if scoring_type in self.eval_metric_map:
             scoring = self.eval_metric_map[scoring_type]
         else:
-            print('Scoring method for CatBoost not found in mapping. Defaulting to "Poisson"')
-            scoring = 'Poisson'
+            print('Scoring method for CatBoost not found in mapping. Defaulting to "RMSE"')
+            scoring = 'RMSE'
 
         self.deopt_classifier = cb.CatBoostRegressor(loss_function='RMSE', random_seed=42, eval_metric=scoring
                                                      ,early_stopping_rounds=42
@@ -590,14 +612,25 @@ class CatBoostReg(BaseModel):
         self.best_score = max(self.cb_grid['cv_results']['test-' + str(scoring) + '-mean'])
         return (self.cb_grid['params'], self.best_score)
 
+    def default_model(self, X_train: np.ndarray = None, y_train: np.ndarray = None, params: dict = None, splits: int = 5,
+                  kfold_shuffle: int = 1, scoring_type: str = 'explained_variance', verbose: int = 0
+                  ):
+        self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
+        self.optimised_model = cb.CatBoostRegressor(loss_function="RMSE", random_seed=42, verbose=False)
+        self.cv_score = cross_val_score(self.optimised_model, X_train, y_train, scoring=scoring_type, cv=self.kfold,
+                                        n_jobs=-1)
+        self.best_score = np.mean(self.cv_score)
+        print("CatBoost: ", self.best_score)
+        return [self.optimised_model, self.best_score]
+
     def optimised(self, X_train: np.ndarray = None, y_train: np.ndarray = None, params: dict = None, splits: int = 5,
                   kfold_shuffle: int = 1, scoring_type: str = 'explained_variance', verbose: int = 0
                   ):
         if scoring_type in self.eval_metric_map:
             scoring = self.eval_metric_map[scoring_type]
         else:
-            print('Scoring method for CatBoost not found in mapping. Defaulting to "Poisson"')
-            scoring = 'Poisson'
+            print('Scoring method for CatBoost not found in mapping. Defaulting to "RMSE"')
+            scoring = 'RMSE'
 
         self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
         self.optimised_model = cb.CatBoostRegressor(loss_function='RMSE', random_seed=42, eval_metric=scoring

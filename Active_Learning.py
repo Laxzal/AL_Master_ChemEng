@@ -435,6 +435,8 @@ class Algorithm(object):
                                                        query_strategy=max_std_sampling)
             if initialisation in ['gridsearch','randomized'] :
                 self.scores = self.committee_models.gridsearch_committee(initialisation=initialisation, grid_params=grid_params, verbose=verbose)
+            if initialisation =='default':
+                self.scores = self.committee_models.default_committee()
             elif initialisation == 'optimised':
                 self.scores = self.committee_models.optimised_comittee(params=grid_params)
             self.committee_models.fit_data()
@@ -980,23 +982,38 @@ NN_Regression = {
 #      , 'l2_leaf_reg': 5 # Increase the value to prevent overfitting DEFAULT is 3
 #                 ,'verbose': False
 #                  }
-###Reduced Features - New Params
-SVM_Reg = {'C': 10
-          }
-
-RFE_Reg = {'n_estimators': 600,
-            'max_features': 'sqrt',
-            'max_depth': 100,
-            'bootstrap': False,
-           'min_samples_split': 10,
-             'min_samples_leaf': 0.1
-            }
-CatBoost_Reg = {'learning_rate': 0.1,
-                 'depth': 6  # DEFAULT is 6. Decrease value to prevent overfitting
-     , 'l2_leaf_reg': 5 # Increase the value to prevent overfitting DEFAULT is 3
-                ,'verbose': False
-                 }
-
+# ###Reduced Features - New Params
+# SVM_Reg = {'C': 10
+#           }
+#
+# RFE_Reg = {'n_estimators': 600,
+#             'max_features': 'sqrt',
+#             'max_depth': 100,
+#             'bootstrap': False,
+#            'min_samples_split': 10,
+#              'min_samples_leaf': 0.1
+#             }
+# CatBoost_Reg = {'learning_rate': 0.1,
+#                  'depth': 6  # DEFAULT is 6. Decrease value to prevent overfitting
+#      , 'l2_leaf_reg': 5 # Increase the value to prevent overfitting DEFAULT is 3
+#                 ,'verbose': False
+#                  }
+#
+#
+#
+# #Default RFE
+# RFE_Reg = {'n_estimators' : 100,
+#            'criterion': 'squared_error',
+#            'max_depth': None,
+#            'min_samples_split': 2,
+#            'min_samples_leaf': 1,
+#            'min_weight_fraction_leaf': 0.0,
+#            'max_features': 1.0,
+#            'max_leaf_nodes': None,
+#           'min_impurity_decrease': 0.0,
+#            'bootstrap': True,
+#            'n_jobs': -1,
+#            'max_samples': None}
 grid_params = {}
 grid_params['SVC'] = SvmModel
 grid_params['Random_Forest'] = RfModel
@@ -1052,7 +1069,7 @@ alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
                 run_type='AL')
 
 #alg.analyse_data()
-alg.run_algorithm(initialisation='optimised', splits=5, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=False, kfold_repeats=5,
+alg.run_algorithm(initialisation='default', splits=5, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=False, kfold_repeats=5,
                   )
 alg.compare_query_changes()
 alg.similairty_scoring(method='gower', threshold=0.2, n_instances=10)

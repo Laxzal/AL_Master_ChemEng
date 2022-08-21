@@ -335,6 +335,16 @@ class CommitteeRegressor(ABC):
 
         return score_values
 
+    def default_committee(self):
+        score_values = {}
+        for learner_idx, learner in enumerate(self.learner_list):
+            score_values[learner.model_type] = learner.default_model(X_train=self.X_training, y_train=self.y_training,
+                                                                 params=None,
+                                                                 splits=self.splits,
+                                                                 kfold_shuffle=self.kfold_shuffle,
+                                                                 scoring_type=self.scoring_type)
+        return score_values
+
     def optimised_comittee(self, params: dict = None):
         score_values = {}
         for learner_idx, learner in enumerate(self.learner_list):

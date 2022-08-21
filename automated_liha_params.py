@@ -43,7 +43,7 @@ class LiHa_Params():
 
         print(self.dataframe_cmpnd)
 
-test = LiHa_Params("SVR_RFE_Regressor_CatBoostReg_Ouput_Selection_max_std_sampling_20220817.xlsx",
-                   r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/AL_Output/BZHL2SR4YE_20220817_1836_complete_iteration_3')
+test = LiHa_Params("SVR_RFE_Regressor_CatBoostReg_Ouput_Selection_max_std_sampling_20220820.xlsx",
+                   r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/AL_Output/7ELJNTXJ2O_20220820_1810_complete_iteration_6')
 test.read_al_file()
 test.reactant_weights(0.5, 0.5, 0.3)
