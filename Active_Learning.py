@@ -1069,7 +1069,7 @@ alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
                 run_type='AL')
 
 #alg.analyse_data()
-alg.run_algorithm(initialisation='default', splits=5, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=False, kfold_repeats=5,
+alg.run_algorithm(initialisation='default', splits=10, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=False, kfold_repeats=10,
                   )
 alg.compare_query_changes()
 alg.similairty_scoring(method='gower', threshold=0.2, n_instances=10)

@@ -398,7 +398,7 @@ class SVR_Model(BaseModel):
         plt.plot([p1, p2], [p1, p2], 'b-')
         plt.xlabel('True Values', fontsize=15)
         plt.ylabel('Predictions', fontsize=15)
-        plt.title(str(SVR_Model.model_type) + ': ' + str(score_test))
+        plt.title(str(SVR_Model.model_type) + ': ' + str(np.round(score_train)))
         plt.axis('equal')
 
         if plot == True:
@@ -544,7 +544,7 @@ class RandomForestEnsemble(BaseModel):
         plt.plot([p1, p2], [p1, p2], 'b-')
         plt.xlabel('True Values', fontsize=15)
         plt.ylabel('Predictions', fontsize=15)
-        plt.title(str(RandomForestEnsemble.model_type) + ': ' + str(score_test))
+        plt.title(str(RandomForestEnsemble.model_type) + ': ' + str(np.round(score_train)))
         plt.axis('equal')
 
         if plot == True:
@@ -706,7 +706,7 @@ class CatBoostReg(BaseModel):
         plt.plot([p1, p2], [p1, p2], 'b-')
         plt.xlabel('True Values', fontsize=15)
         plt.ylabel('Predictions', fontsize=15)
-        plt.title(str(CatBoostReg.model_type) + ': ' + str(score_test))
+        plt.title(str(CatBoostReg.model_type) + ': ' + str(np.round(score_train)))
         plt.axis('equal')
 
         if plot == True:
@@ -795,7 +795,7 @@ class SVRLinear(BaseModel):
         plt.plot([p1, p2], [p1, p2], 'b-')
         plt.xlabel('True Values', fontsize=15)
         plt.ylabel('Predictions', fontsize=15)
-        plt.title(str(SVRLinear.model_type) + ': ' + str(score_train))
+        plt.title(str(SVRLinear.model_type) + ': ' + str(np.round(score_train)))
         plt.axis('equal')
 
         if plot == True:
@@ -906,7 +906,7 @@ class Multi_SVR(BaseModel):
         plt.plot([p1, p2], [p1, p2], 'b-')
         plt.xlabel('True Values', fontsize=15)
         plt.ylabel('Predictions', fontsize=15)
-        plt.title(str(RandomForestEnsemble.model_type) + ': ' + str(score_train))
+        plt.title(str(RandomForestEnsemble.model_type) + ': ' + str(np.round(score_train)))
         plt.axis('equal')
 
         if plot == True:
