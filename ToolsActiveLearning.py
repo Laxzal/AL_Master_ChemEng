@@ -3,6 +3,8 @@ from typing import List, Union, Sequence
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
+from scipy.special import softmax
+
 
 def retrieverows(X_val, I: Union[int, List[int], np.ndarray]) -> Union[sp.csr_matrix, np.ndarray, pd.DataFrame]:
     if sp.issparse(X_val):
@@ -63,3 +65,28 @@ def data_vstack(blocks: Sequence):
 
 
     raise TypeError("%s datatype is not supported" % type(blocks[0]))
+
+
+def print_feature_importance_shap_values(shap_values, features):
+    '''
+
+    Prints the feature importances based on the SHAP values in an ordered way
+    :param shap_values: tje SJA{ va;ues calculated from a shap.Explainer object
+    :param features: The name of the features, on the order presented to the explainer
+    :return:
+    '''
+    # Calculates the feature importance (mean absolute shap value) for each feature
+    importances = []
+    for i in range(shap_values.values.shape[1]):
+        importances.append(np.mean(np.abs(shap_values.values[:, i])))
+    # Calculates the normalized version
+    importances_norm = softmax(importances)
+    # Organize the importances and columns in a dictionary
+    feature_importances = {fea: imp for imp, fea in zip(importances, features)}
+    feature_importances_norm = {fea: imp for imp, fea in zip(importances_norm, features)}
+    # Sorts the dictionary
+    feature_importances = {k: v for k, v in sorted(feature_importances.items(), key=lambda item: item[1], reverse = True)}
+    feature_importances_norm= {k: v for k, v in sorted(feature_importances_norm.items(), key=lambda item: item[1], reverse = True)}
+    # Prints the feature importances
+    for k, v in feature_importances.items():
+        print(f"{k} -> {v:.4f} (softmax = {feature_importances_norm[k]:.4f})")

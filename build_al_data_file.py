@@ -195,7 +195,7 @@ class ALDataBuild:
                     tdf_random = pd.read_excel(f)
                     self.random_dataframe = pd.concat([self.random_dataframe, tdf_random], ignore_index=True)
                     # self.dls_data = self.dls_data.append(dw, ignore_index=True)
-                elif 'Output' in f:
+                elif 'Ouput' in f:
                     # Need to hardcode the skiprows for Output
                     tdf_output = pd.read_excel(f, skiprows=np.arange(13))
                     self.output_dataframe = pd.concat([self.output_dataframe, tdf_output], ignore_index=True)
@@ -237,7 +237,10 @@ class ALDataBuild:
 
         self.output_dataframe.loc[self.output_dataframe['Ratio_2'] == 0.44999999999999996, 'Ratio_2'] = 0.45
         self.output_dataframe.loc[self.output_dataframe['Ratio_2'] == 0.4499999999999999, 'Ratio_2'] = 0.45
-        self.output_dataframe = np.round(self.output_dataframe, 2)
+
+        self.output_dataframe_cols_rnd = self.output_dataframe.columns.difference(['Lipid_Vol_Pcnt'])
+
+        self.output_dataframe[self.output_dataframe_cols_rnd] = np.round(self.output_dataframe[self.output_dataframe_cols_rnd], 2)
         self.output_dataframe.dropna(inplace=True)
         self.random_dataframe.dropna(how='all', inplace=True)
         self.random_dataframe.drop(columns=['original_index'], inplace=True)
@@ -425,6 +428,28 @@ class ALDataBuild:
             y_train = np.hstack((y_train_initial, self.y_train_random)).astype(float)
 
         return X_train, y_train
+    def add_random_adjusted_to_train(self, X_train_initial, y_train_initial,
+                            X_train_prev, y_train_prev):
+
+        if X_train_prev is not None and y_train_prev is not None:
+            X_train = np.vstack((X_train_initial, X_train_prev, self.x_random_train))
+            y_train = np.hstack((y_train_initial, y_train_prev, self.y_random_train)).astype(float)
+        else:
+            X_train = np.vstack((X_train_initial, self.x_random_train))
+            y_train = np.hstack((y_train_initial, self.y_random_train)).astype(float)
+
+        return X_train, y_train
+
+
+
+    def return_random_adjusted(self, column_selection, save_path, folder):
+        folder_file = os.path.join(save_path, folder, "random_data_iteration.xlsx")
+        self.random_adjusted_data = pd.read_excel(folder_file)
+        self.x_random_train = self.random_adjusted_data[column_selection].to_numpy()
+        self.y_random_train = self.random_adjusted_data['Z-Average (d.nm)'].to_numpy().reshape(-1)
+
+        return self.x_random_train, self.y_random_train
+
 
 ##Test
 

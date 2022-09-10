@@ -38,6 +38,7 @@ from build_al_data_file import ALDataBuild
 from mrmr_algorithm import MRMR
 from scipy.stats import loguniform
 import warnings
+from automated_liha_params import LiHa_Params
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 """'
 
@@ -92,6 +93,8 @@ def unlabelled_data(file, method, column_removal_experiment: list=None):
         ul_df = ul_df.groupby(level=0, axis=1, sort=False).sum()
 
     # print(ul_df.isna().any())
+
+    ul_df.drop_duplicates(inplace=True)
     X_val = ul_df.to_numpy()
     columns_x_val = ul_df.columns
     return X_val, columns_x_val
@@ -113,6 +116,7 @@ class Algorithm(object):
                  save_path: Optional[str],
                  al_folder: str,
                  random_folder: str,
+                 al_random_folder: str,
                  scoring_type: str,
                  hide: str = None,
                  select: Callable = SelectionFunction.entropy_sampling,
@@ -126,7 +130,7 @@ class Algorithm(object):
 
         assert perc_uncertain <= 1
         assert model_type in ['Classification', 'Regression']
-        assert run_type in [None, 'AL','Random'], 'Choices are None, AL and Random'
+        assert run_type in [None, 'AL','Random','Random_Adjusted', 'AL & Random'], 'Choices are "None", "AL", "Random" and "AL & Random" '
 
         self.regression = None
         self.similarity_score = None
@@ -171,6 +175,7 @@ class Algorithm(object):
 
         self.al_folder = al_folder
         self.random_folder = random_folder
+        self.al_random_folder = al_random_folder
 
         ####Clustering
         self.best_k = None
@@ -183,17 +188,56 @@ class Algorithm(object):
     def create_save_folder(self):
 
         if self.post_run == False:
-            dirName = str(self.uuid) +'_'+ str(self.today_date_time)
+            dirName = str(self.uuid) +'_'+ str(self.today_date_time)+str("_iteration_")+str(0)
 
-            try:
-                # Create Directory
-                save_folder = os.path.join(self.save_path, dirName)
-                os.mkdir(save_folder)
-                print("Directory ", dirName, " Created ")
-                self.save_path = save_folder
-            except FileExistsError:
-                print("Directory ", dirName, " already exists")
+            if self.run_type == 'AL & Random':
+                try:
+                    al_random_folder = self.al_random_folder
+                    save_folder = os.path.join(self.save_path,al_random_folder,dirName)
+                    os.mkdir(save_folder)
+                    self.save_path = save_folder
+                    print("Directory ", dirName, " Created ")
+                except FileExistsError:
+                    print("Directory ", dirName, " already exists")
+            else:
+                try:
+                    # Create Directory
+                    save_folder = os.path.join(self.save_path, dirName)
+                    os.mkdir(save_folder)
+                    print("Directory ", dirName, " Created ")
+                    self.save_path = save_folder
+                except FileExistsError:
+                    print("Directory ", dirName, " already exists")
         elif self.post_run == True:
+            if self.run_type == 'AL & Random':
+                al_random_folder = self.al_random_folder
+                save_folder = os.path.join(self.save_path, al_random_folder)
+                self.input_folder = save_folder
+                list_of_folders = [subdir for root, subdir, rest in os.walk(save_folder)]
+                list_of_folders = list(filter(None, list_of_folders))
+
+                string = ''.join(str(folder) for folder in list_of_folders)
+                list_of_compl_folders = re.findall(r"(?<=')(\S+_\d+_\d+_complete_iteration_\d+)", string)
+                if len(list_of_compl_folders) != 0:
+                    # This appears to be broken at the moment
+                    # self.sorted_list_of_compl_folders = sorted(list_of_compl_folders, key=lambda  x: int("".join([i for i in x if i.isdigit()])),
+                    # reverse=True)
+                    self.sorted_list_of_compl_folders = sorted(list_of_compl_folders,
+                                                               key=lambda x: int(re.search(r'\d+$', x).group()),
+                                                               reverse=True)
+                    self.count_of_iter = (len(list_of_compl_folders) - 1)
+                else:
+                    self.sorted_list_of_compl_folders = None
+                    self.count_of_iter = 0
+
+                dirName = str(self.uuid) + '_' + str(self.today_date_time)+str("_iteration_")+str(self.count_of_iter+1)
+
+                try:
+                    self.save_path = os.path.join(save_folder,dirName)
+                    os.mkdir(self.save_path)
+                    print("Directory ", dirName, " Created")
+                except FileExistsError:
+                    print("Directory ", dirName, " already exists")
             if self.run_type == 'AL':
                 al_folder = self.al_folder
                 save_folder = os.path.join(self.save_path, al_folder)
@@ -227,6 +271,36 @@ class Algorithm(object):
                 except FileExistsError:
                     print("Directory ", dirName, " already exists")
             elif self.run_type == 'Random':
+                rand_folder = self.random_folder
+                save_folder = os.path.join(self.save_path,rand_folder)
+                self.input_folder = save_folder
+                list_of_folders = [subdir for root, subdir,rest in os.walk(save_folder)]
+                list_of_folders =list(filter(None, list_of_folders))
+
+                string = ''.join(str(folder) for folder in list_of_folders)
+                list_of_compl_folders = re.findall(r"(?<=')(\S+_\d+_\d+_complete_iteration_\d+)", string)
+                if len(list_of_compl_folders) != 0:
+                    #This appears to be broken at the moment
+                    #self.sorted_list_of_compl_folders = sorted(list_of_compl_folders, key=lambda  x: int("".join([i for i in x if i.isdigit()])),
+                                                      #reverse=True)
+                    self.sorted_list_of_compl_folders = sorted(list_of_compl_folders,
+                                                               key=lambda x: int(re.search(r'\d+$',x).group()),
+                                                               reverse=True)
+                    self.count_of_iter = (len(list_of_compl_folders) - 1)
+                else:
+                    self.sorted_list_of_compl_folders = None
+                    self.count_of_iter = 0
+
+
+
+                dirName = str(self.uuid) + '_' + str(self.today_date_time)+str("_iteration_")+str(self.count_of_iter+1)
+                try:
+                    self.save_path = os.path.join(save_folder, dirName)
+                    os.mkdir(self.save_path)
+                    print("Directory ", dirName, " Created")
+                except FileExistsError:
+                    print("Directory ", dirName, " already exists")
+            elif self.run_type == 'Random_Adjusted':
                 rand_folder = self.random_folder
                 save_folder = os.path.join(self.save_path,rand_folder)
                 self.input_folder = save_folder
@@ -299,16 +373,23 @@ class Algorithm(object):
             elif self.run_type == 'Random':
                 folder_formulations = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/'
                 folder_formulations = os.path.join(folder_formulations,self.random_folder)
+            elif self.run_type == 'Random_Adjusted':
+                folder_formulations = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/'
+                folder_formulations = os.path.join(folder_formulations,self.random_folder)
+            elif self.run_type == 'AL & Random':
+                folder_formulations = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/'
+                folder_formulations = os.path.join(folder_formulations, self.al_random_folder)
             more_data = ALDataBuild(folder_dls=r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Input',
                                     folder_formulations=folder_formulations)
             #TODO Check out the sorted list of compl folders issue
             self.prev_gguid_df = more_data.load_prev_gguid(save_path=self.input_folder,recent_folder=self.sorted_list_of_compl_folders[0])
-            more_data.collect_csv()
-            more_data.clean_dls_data()
-            more_data.filter_out_D_iteration()
-            more_data.z_scoring(threshold=1.0)
-            more_data.collect_formulations()
-            more_data.merge_dls_data()
+            if self.run_type != 'Random_Adjusted':
+                more_data.collect_csv()
+                more_data.clean_dls_data()
+                more_data.filter_out_D_iteration()
+                more_data.z_scoring(threshold=1.0)
+                more_data.collect_formulations()
+                more_data.merge_dls_data()
             if self.sorted_list_of_compl_folders is None:
                 self.X_val, self.columns_x_val = unlabelled_data(self.file,
                                                                  method='fillna',
@@ -320,6 +401,19 @@ class Algorithm(object):
                 self.X_val, self.columns_x_val, self.x_val_prev_index = more_data.load_x_val_prev_run(save_path =self.input_folder ,
                                                                                recent_folder= self.sorted_list_of_compl_folders[0])
 
+            #temporary solution
+            #TODO Need to fix this
+            if self.run_type == 'AL & Random':
+                self.X_val, self.columns_x_val = more_data.remove_AL_from_unlabelled(X_val=self.X_val,
+                                                                                     X_val_columns_names=self.columns_x_val,
+                                                                                     x_prev_index=self.x_val_prev_index,
+                                                                                     count=(self.count_of_iter+1))
+
+                self.X_train_AL, self.y_train_AL = more_data.return_AL_data()
+                self.X_train, self.y_train = more_data.add_AL_to_train(X_train_initial=self.X_train, y_train_initial=self.y_train,
+                            X_train_prev=self.X_train_prev, y_train_prev=self.y_train_prev)
+                data_load_split.update_x_y_data(additional_x=more_data.X_train_AL,additional_y=more_data.y_train_AL,
+                                                prev_x_data=self.X_train_prev, prev_y_data=self.y_train_prev)
             if self.run_type == 'AL':
                 self.X_val, self.columns_x_val = more_data.remove_AL_from_unlabelled(X_val=self.X_val,
                                                                                      X_val_columns_names=self.columns_x_val,
@@ -335,6 +429,10 @@ class Algorithm(object):
                                                 prev_x_data=self.X_train_prev, prev_y_data=self.y_train_prev)
 
             elif self.run_type == 'Random':
+
+
+
+
                 self.X_val, self.columns_x_val = more_data.remove_random_from_unlabelled(X_val=self.X_val,
                                                                                      X_val_columns_names=self.columns_x_val,
                                                                                      x_prev_index=self.x_val_prev_index,
@@ -346,6 +444,18 @@ class Algorithm(object):
 
                 data_load_split.update_x_y_data(additional_x=more_data.X_train_random, additional_y=more_data.y_train_random,
                                                 prev_x_data=self.X_train_prev,prev_y_data= self.y_train_prev)
+
+            elif self.run_type == 'Random_Adjusted':
+                self.X_val, self.columns_x_val = unlabelled_data(self.file,
+                                                                 method='fillna',
+                                                                 column_removal_experiment=self.column_removal_experiment)
+                self.X_train_random, self.y_train_random = more_data.return_random_adjusted(column_selection=self.columns_x_val,save_path=self.input_folder, folder=self.sorted_list_of_compl_folders[0])
+                self.X_train, self.y_train = more_data.add_random_adjusted_to_train(X_train_initial=self.X_train, y_train_initial=self.y_train,
+                            X_train_prev=self.X_train_prev, y_train_prev=self.y_train_prev)
+                data_load_split.update_x_y_data(additional_x=self.X_train_random, additional_y=self.y_train_random,
+                                                prev_x_data=self.X_train_prev,prev_y_data= self.y_train_prev)
+
+
             elif self.run_type is None:
                 pass
 
@@ -401,7 +511,8 @@ class Algorithm(object):
         print(test.info())
         print(test['mw_cp_2'].value_counts())
 
-
+        self.X = data_load_split.X
+        self.y = data_load_split.y
 
         return self.X_train, self.X_test, self.y_train, self.y_test
 
@@ -450,8 +561,13 @@ class Algorithm(object):
             self.committee_models.predictionvsactual(save_path=self.save_path, plot=False)
             self.models_algorithms = self.committee_models.printname()
             self.committee_models.out_cv_score(save_path=self.save_path)
-            #self.committee_models.lime_analysis(self.columns_x_val, save_path=self.save_path,
-            #                                   skip_unlabelled_analysis=skip_unlabelled_analysis)
+            #self.committee_models.shap_analysis_committee(X_test=self.X_test, X=self.X ,features=self.columns_x_val,
+            #                                              y_test=self.y_test,
+            #                                              save_path=self.save_path)
+            self.committee_models.shapash_analysis_committee(X_train=self.X_train, y_train=self.y_train,
+                                                             X_test=self.X_test, X=self.X, features=self.columns_x_val,
+                                                             y_test=self.y_test,y= self.y)
+
 
     def classification_model(self, splits: int = 5, grid_params=None):
         if type(self.model_object) is list:
@@ -570,10 +686,10 @@ class Algorithm(object):
         _, reversed_x_val, _ = self.normaliser.inverse(self.X_train, self.samples, self.X_test,
                                                        converted_columns=self.converted_columns)
 
-        df = pd.DataFrame(reversed_x_val, columns=self.columns_x_val, index=self.samples_index)
+        self.df = pd.DataFrame(reversed_x_val, columns=self.columns_x_val, index=self.samples_index)
         # add similarty scores:
-        self.sample_score.index = df.index
-        df['sample_scoring'] = self.sample_score
+        self.sample_score.index = self.df.index
+        self.df['sample_scoring'] = self.sample_score
         data = {'date': self.today_date,
                 'model_type': self.model_type}
         if type(self.model_object) is list:
@@ -595,9 +711,9 @@ class Algorithm(object):
         df_scores = pd.DataFrame.from_dict(self.scores, orient='index').T
         df_scores['average_score'] = df_scores[1:].sum(axis=1) / len(self.model_object)
 
-        file_name = str(self.models_algorithms) + '_Ouput_Selection_' + str(self.select.__name__) + '_' + str(
+        self.output_file_name = str(self.models_algorithms) + '_Ouput_Selection_' + str(self.select.__name__) + '_' + str(
             self.today_date) + '.xlsx'
-        file_name = os.path.join(self.save_path, file_name)
+        file_name = os.path.join(self.save_path, self.output_file_name)
 
         writer = pd.ExcelWriter(file_name
                                 ,
@@ -607,7 +723,7 @@ class Algorithm(object):
         df_scores.to_excel(writer,
                            index=False, startcol=col_move)
 
-        df.to_excel(
+        self.df.to_excel(
             writer,
             index=True, startrow=13)
 
@@ -660,12 +776,25 @@ class Algorithm(object):
                                                        converted_columns=self.converted_columns)
         unlabeled_data= pd.DataFrame(reversed_x_val, columns=self.columns_x_val)
         unlabeled_data['original_index'] = unlabeled_data.index
-
-        random_data = unlabeled_data.sample(n=n_instances)
-        file_name = "random_unlabeled_data_points.xlsx"
-        file_name = os.path.join(self.save_path, file_name)
-        random_data.to_excel(file_name, index_label=False)
-
+        if self.run_type != 'AL & Random':
+            random_data = unlabeled_data.sample(n=n_instances, random_state=42)
+            file_name = "random_unlabeled_data_points.xlsx"
+            file_name = os.path.join(self.save_path, file_name)
+            random_data.to_excel(file_name, index_label=False)
+        else:
+            temp_df = self.df.index.to_numpy().reshape(-1,1)
+            temp_df = pd.DataFrame(temp_df, columns=['original_index'])
+            original_shape = unlabeled_data.shape
+            unlabeled_data = unlabeled_data.merge(temp_df, left_on='original_index', right_on='original_index', how='left', indicator=True)
+            unlabeled_data = unlabeled_data[unlabeled_data['_merge'] == 'left_only']
+            merge_shape = unlabeled_data.shape
+            both_df = unlabeled_data[unlabeled_data['_merge'] == 'both']
+            print("Original Shape: ", original_shape)
+            print("Merge Shape: ", merge_shape)
+            random_data = unlabeled_data.sample(n=n_instances, random_state=42)
+            file_name = "random_unlabeled_data_points.xlsx"
+            file_name = os.path.join(self.save_path, file_name)
+            random_data.to_excel(file_name, index_label=False)
 
     def master_file(self):
 
@@ -805,6 +934,18 @@ class Algorithm(object):
                     added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
                     added_data['Z-Average (d.nm)'] = add_data_tgthr_y
                     added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+                elif self.run_type == 'Random_Adjusted':
+                    add_data_tgthr_x = np.vstack((self.X_train_prev, self.X_train_random))
+                    add_data_tgthr_y = np.hstack((self.y_train_prev, self.y_train_random)).reshape(-1, 1)
+                    added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
+                    added_data['Z-Average (d.nm)'] = add_data_tgthr_y
+                    added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+                elif self.run_type == 'AL & Random':
+                    add_data_tgthr_x = np.vstack((self.X_train_prev, self.X_train_AL))
+                    add_data_tgthr_y = np.hstack((self.y_train_prev, self.y_train_AL)).reshape(-1,1)
+                    added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
+                    added_data['Z-Average (d.nm)'] = add_data_tgthr_y
+                    added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
             else:
                 print("No previous iteration data")
                 if self.run_type == 'AL':
@@ -815,6 +956,16 @@ class Algorithm(object):
                     added_data = pd.DataFrame(self.X_train_random, columns=self.columns_x_val)
                     added_data['Z-Average (d.nm)'] = self.y_train_random.reshape(-1, 1)
                     added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+
+                elif self.run_type == 'Random_Adjusted':
+                    added_data = pd.DataFrame(self.X_train_random, columns=self.columns_x_val)
+                    added_data['Z-Average (d.nm)'] = self.y_train_random.reshape(-1, 1)
+                    added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+                if self.run_type == 'AL & Random':
+                    added_data = pd.DataFrame(self.X_train_AL, columns=self.columns_x_val)
+                    added_data['Z-Average (d.nm)'] = self.y_train_AL.reshape(-1, 1)
+                    added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+
             temp_new_guid = pd.DataFrame([np.array((self.count_of_iter+1, self.uuid))],columns=['iteration', 'guid'])
         elif self.post_run == False:
             print("First run - No iteration data")
@@ -824,6 +975,15 @@ class Algorithm(object):
         else:
             df2 = temp_new_guid
         df2.to_csv(os.path.join(self.save_path,'iteration_prev_guid.csv'),index=False)
+
+
+    def automated_liha_file(self):
+
+        liha = LiHa_Params(self.output_file_name,
+                   self.save_path)
+
+        liha.read_al_file()
+        liha.reactant_weights(0.5, 0.5, 0.3)
 
 
     def change_folder_name_complete(self):
@@ -1029,6 +1189,7 @@ grid_params['NN_Reg'] = NN_Regression
 save_path = regression_output_path_1
 alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
                 scoring_type='r2', save_path=save_path, al_folder='AL_Output',
+                al_random_folder='AL_Random_Output',
                 random_folder='Random_Output',
 
                 split_ratio=0.30,
@@ -1065,19 +1226,20 @@ alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
 
                                            ],
                 MRMR_K_Value=10
-                ,post_run=True,
+                ,post_run=False,
                 run_type='AL')
 
 #alg.analyse_data()
 alg.run_algorithm(initialisation='default', splits=10, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=False, kfold_repeats=10,
                   )
 alg.compare_query_changes()
-alg.similairty_scoring(method='gower', threshold=0.2, n_instances=10)
+alg.similairty_scoring(method='gower', threshold=0.8, n_instances=5)
 alg.output_data()
 alg.random_unlabelled(n_instances=10)
 alg.master_file()
 alg.export_modified_unlabelled_data_and_additional_labeled_and_guid()
+alg.automated_liha_file()
 alg.change_folder_name_complete()
 
 #https://medium.com/analytics-vidhya/mae-mse-rmse-coefficient-of-determination-adjusted-r-squared-which-metric-is-better-cd0326a5697e
-#https://towardsdatascience.com/mrmr-explained-exactly-how-you-wished-someone-explained-to-you-9cf4ed27458b
+#https://towardsdatascience.com/m rmr-explained-exactly-how-you-wished-someone-explained-to-you-9cf4ed27458b

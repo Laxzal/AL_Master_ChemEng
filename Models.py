@@ -5,6 +5,7 @@ from typing import Optional
 import catboost as cb
 import numpy as np
 import pandas as pd
+import shap
 from matplotlib import pyplot as plt
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import confusion_matrix, precision_score
@@ -13,9 +14,10 @@ from sklearn.model_selection import StratifiedKFold, GridSearchCV, KFold, Repeat
 from sklearn.svm import SVC, SVR, LinearSVR
 from sklearn.utils import compute_class_weight
 
+import ToolsActiveLearning
 from BaseModel import BaseModel
 from MSVR import MSVR
-
+from shapash.explainer.smart_explainer import SmartExplainer
 
 class SvmModel(BaseModel):
     model_type = 'SVC'
@@ -310,7 +312,7 @@ class SVR_Model(BaseModel):
         return [self.optimised_model, self.svm_grid.best_score_]
 
     def default_model(self, X_train: np.ndarray = None, y_train: np.ndarray = None, params: dict = None, splits: int = 5,
-                  kfold_shuffle: int = 1, scoring_type: str = 'explained_variance', verbose: int = 0
+                  kfold_shuffle: int = 1, scoring_type: str = 'r2', verbose: int = 0
                   ):
         self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
         self.optimised_model = SVR()
@@ -321,7 +323,7 @@ class SVR_Model(BaseModel):
         return [self.optimised_model, self.best_score]
 
     def optimised(self, X_train: np.ndarray = None, y_train: np.ndarray = None, params: dict = None, splits: int = 5,
-                  kfold_shuffle: int = 1, scoring_type: str = 'explained_variance', verbose: int = 0
+                  kfold_shuffle: int = 1, scoring_type: str = 'r2', verbose: int = 0
                   ):
 
         self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
@@ -398,7 +400,7 @@ class SVR_Model(BaseModel):
         plt.plot([p1, p2], [p1, p2], 'b-')
         plt.xlabel('True Values', fontsize=15)
         plt.ylabel('Predictions', fontsize=15)
-        plt.title(str(SVR_Model.model_type) + ': ' + str(np.round(score_train)))
+        plt.title(str(SVR_Model.model_type) + ': ' + str(np.round(score_test,2)))
         plt.axis('equal')
 
         if plot == True:
@@ -408,6 +410,37 @@ class SVR_Model(BaseModel):
             plot_name = os.path.join(save_path, plot_name)
             plt.tight_layout()
             plt.savefig(plot_name, dpi=400)
+
+
+    def shap_analysis_model(self,X_test,X, features, y_test, save_path):
+        #Fit the Explainer
+        #temp_df = pd.DataFrame(X_test, columns=[features])
+        explainer = shap.Explainer(self.optimised_model.predict, X_test, feature_names=features)
+        #Calculate the SHAP values
+        shap_values = explainer(X_test)
+            #.data is the copy of the input data
+            #.base_values is the expected value of the target
+            #.values are the SHAP values for each example
+        plt.rcParams['axes.xmargin'] = 0
+        plt.close("all")
+        shap.plots.bar(shap_values)
+        plt.close("all")
+        #Maybe cluster with full dataset? - Based on XGBoost
+        clustering = shap.utils.hclust(X_test, y_test)
+        shap.plots.bar(shap_values, clustering=clustering, clustering_cutoff=0.9)
+        plt.close("all")
+        #fig = shap.plots.bar(shap_values, clustering=clustering, clustering_cutoff=0.9, show=False)
+        #fig_summary = str(SVR_Model.model_type) + "_all_predictions_test_Regression.jpg"
+        #fig_summary = os.path.join(save_path, fig_summary)
+        #fig.savefig(fig_summary, bbox_inches='tight')
+        ToolsActiveLearning.print_feature_importance_shap_values(shap_values, features)
+    #def shapash_analysis(self, X_train, y_train, X_test, y_test, X, y, features):
+     #   xpl = SmartExplainer(model = self.optimised_model.fit(X_train, y_train))
+    #    xpl.compile(x=X_test, y_pred=self.test_y_predicted)
+     #   app = xpl.run_app()
+
+
+
 
 
 class RandomForestEnsemble(BaseModel):
@@ -461,7 +494,7 @@ class RandomForestEnsemble(BaseModel):
         return [self.optimised_model, self.rf_grid.best_score_]
 
     def default_model(self, X_train: np.ndarray = None, y_train: np.ndarray = None, params: dict = None, splits: int = 5,
-                  kfold_shuffle: int = 1, scoring_type: str = 'explained_variance', verbose: int = 0
+                  kfold_shuffle: int = 1, scoring_type: str = 'r2', verbose: int = 0
                   ):
         self.kfold = RepeatedKFold(n_splits=splits, n_repeats=kfold_shuffle, random_state=42)
         self.optimised_model = RandomForestRegressor(random_state=42)
@@ -544,7 +577,7 @@ class RandomForestEnsemble(BaseModel):
         plt.plot([p1, p2], [p1, p2], 'b-')
         plt.xlabel('True Values', fontsize=15)
         plt.ylabel('Predictions', fontsize=15)
-        plt.title(str(RandomForestEnsemble.model_type) + ': ' + str(np.round(score_train)))
+        plt.title(str(RandomForestEnsemble.model_type) + ': ' + str(np.round(score_test,2)))
         plt.axis('equal')
 
         if plot == True:
@@ -706,7 +739,7 @@ class CatBoostReg(BaseModel):
         plt.plot([p1, p2], [p1, p2], 'b-')
         plt.xlabel('True Values', fontsize=15)
         plt.ylabel('Predictions', fontsize=15)
-        plt.title(str(CatBoostReg.model_type) + ': ' + str(np.round(score_train)))
+        plt.title(str(CatBoostReg.model_type) + ': ' + str(np.round(score_test, 2)))
         plt.axis('equal')
 
         if plot == True:
@@ -795,7 +828,7 @@ class SVRLinear(BaseModel):
         plt.plot([p1, p2], [p1, p2], 'b-')
         plt.xlabel('True Values', fontsize=15)
         plt.ylabel('Predictions', fontsize=15)
-        plt.title(str(SVRLinear.model_type) + ': ' + str(np.round(score_train)))
+        plt.title(str(SVRLinear.model_type) + ': ' + str(np.round(score_train,2)))
         plt.axis('equal')
 
         if plot == True:
@@ -906,7 +939,7 @@ class Multi_SVR(BaseModel):
         plt.plot([p1, p2], [p1, p2], 'b-')
         plt.xlabel('True Values', fontsize=15)
         plt.ylabel('Predictions', fontsize=15)
-        plt.title(str(RandomForestEnsemble.model_type) + ': ' + str(np.round(score_train)))
+        plt.title(str(RandomForestEnsemble.model_type) + ': ' + str(np.round(score_train,2)))
         plt.axis('equal')
 
         if plot == True:

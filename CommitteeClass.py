@@ -438,6 +438,13 @@ class CommitteeRegressor(ABC):
             learner.predict_actual_graph(y_actual_train=self.y_training, y_actual_test=self.y_testing,
                                          score_query=self.score_query, save_path=save_path, plot=plot)
 
+
+    def shap_analysis_committee(self, X_test, X, features, y_test, save_path):
+        for learner_idx, learner in enumerate(self.learner_list):
+            learner.shap_analysis_model(X_test, X, features, y_test, save_path)
+    def shapash_analysis_committee(self, X_train, y_train, X_test, X, features, y_test,y):
+        for learner_idx, learner in enumerate(self.learner_list):
+            learner.shapash_analysis(X_train, y_train, X_test, y_test, X, y, features)
     # def lime_analysis(self, feature_names, save_path: Optional[str], skip_unlabelled_analysis: bool=False):
     # feat_names: str = None, target_names: str = None
     # explainer = lime.lime_tabular.LimeTabularExplainer(self.X_training, feature_names=feat_names,
