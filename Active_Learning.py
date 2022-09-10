@@ -1131,20 +1131,7 @@ NN_Regression = {
 #           }
 #
 # RFE_Reg = {'n_estimators': 800,
-#             'max_features': 'log2',
-#             # Hashing out RBF provides more variation in the proba_values, however, the uniqueness 12 counts
-#             'max_depth': 90,
-#             'bootstrap': False,
-#              'min_samples_leaf': 0.1
-#             }
-# CatBoost_Reg = {'learning_rate': 0.1,
-#                  'depth': 2  # DEFAULT is 6. Decrease value to prevent overfitting
-#      , 'l2_leaf_reg': 5 # Increase the value to prevent overfitting DEFAULT is 3
-#                 ,'verbose': False
-#                  }
-# ###Reduced Features - New Params
-# SVM_Reg = {'C': 10
-#           }
+
 #
 # RFE_Reg = {'n_estimators': 600,
 #             'max_features': 'sqrt',

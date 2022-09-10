@@ -434,11 +434,6 @@ class SVR_Model(BaseModel):
         #fig_summary = os.path.join(save_path, fig_summary)
         #fig.savefig(fig_summary, bbox_inches='tight')
         ToolsActiveLearning.print_feature_importance_shap_values(shap_values, features)
-    #def shapash_analysis(self, X_train, y_train, X_test, y_test, X, y, features):
-     #   xpl = SmartExplainer(model = self.optimised_model.fit(X_train, y_train))
-    #    xpl.compile(x=X_test, y_pred=self.test_y_predicted)
-     #   app = xpl.run_app()
-
 
 
 
