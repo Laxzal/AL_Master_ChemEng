@@ -7,12 +7,13 @@ class MRMR(object):
     def __init__(self, X, y, column_names, K):
 
         self.X = pd.DataFrame(X, columns=column_names)
+        self.X = self.X.infer_objects()
         self.y = y
         self.column_names = column_names
         self.selected = []
         self.not_selected = self.X.columns.to_list()
         self.K = K
-
+        self.mrm_scores = pd.DataFrame(index=self.column_names)
         self.F = None
         self.corr = None
         self.compute_F_statistic()
@@ -33,6 +34,7 @@ class MRMR(object):
 
             #Find the best feature
             best = score.index[score.argmax()]
+            self.mrm_scores.loc[score.index[score.argmax()], 0] = score[score.argmax()]
             self.selected.append(best)
             self.not_selected.remove(best)
 
