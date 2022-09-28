@@ -1,0 +1,151 @@
+<html>
+<head>
+<title>Similarity_Measure.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #bbbbbb;}
+.s1 { color: #d55fde;}
+.s2 { color: #5c6370;}
+.s3 { color: #89ca78;}
+.s4 { color: #2bbac5;}
+.s5 { color: #d19a66;}
+</style>
+</head>
+<body bgcolor="#282c34">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+Similarity_Measure.py</font>
+</center></td></tr></table>
+<pre>    <span class="s1">def </span><span class="s0">_loop_function(self, threshold, unlabeled_data, similarity_points, n_instances, converted_columns,</span>
+                       <span class="s0">threshold_level):</span>
+
+        <span class="s2">''' 
+ 
+        The _loop_function determines the gower measurement of each data point compared to the points array created in 
+        the function similarity_gower. 
+ 
+        The core of the function is as follows: 
+ 
+        The max ranked standard deviation unlabelled dataset is iterated over using the method .iterrows(). This 
+        method returns the index and the row (as a series) as pairs. If the points array is empty, then the first max 
+        ranked std deviation unlabelled formulation is appended to the points array. Once the points array has its 
+        first data point appended, the next max ranked std unlabelled formulation is compared to the first data point 
+        in the points array via the gower method. If the gower measurement returns a value less than the threshold, 
+        it means the data point passes the threshold requirement of dissimilarity and is added to the points array. 
+        However, if it is higher than the threshold, it is subsequently removed. 
+ 
+        Now, if there are, for example, two data points in the points array, the next max std deviation unlabelled 
+        formulation is compared to both of the points within the points array. If it's dissimilarity scores for each 
+        data points in the point are lower than the threshold at the time, then it is added to the points array. 
+        However, if it's dissimilarity score to one of the data points in the points array is higher than the 
+        threshold, it is subsequently removed. 
+ 
+        Overall, this row iteration continues until all formulations in the max ranked std deviation unlabelled dataset 
+        has been compared. 
+ 
+        The function then returns the selected unlabelled formulations that passed the threshold, their index in the 
+        unlabelled dataset, their similarity scores and the points array (which may or may not be higher than the 
+        required number of chosen instances set by the user). 
+ 
+ 
+        :param threshold: float, a value set by the user that determines whether the unlabelled formulation is 
+        dissimilar enough to be considered for labelling 
+        :param unlabeled_data: dataframe, the unlabelled dataset that has been ranked via the max standard deviation 
+        sampling strategy 
+        :param similarity_points: dict, a dictionary of the formulation index and their similarity score 
+        :param n_instances: int, number of required unlabelled formulations to be selected, set by the user 
+        :param converted_columns: list, the feature names 
+        :param threshold_level: dict, a dictionary of the threshold level the unlabelled formulation was chosen at the 
+        time 
+        :return: The function then returns the selected unlabelled formulations that passed the threshold, their index 
+        in the unlabelled dataset, their similarity scores and the points array (which may or may not be higher than the 
+        required number of chosen instances set by the user). 
+        '''</span>
+        <span class="s0">now = datetime.now()</span>
+
+        <span class="s0">current_time = now.strftime(</span><span class="s3">&quot;%H:%M:%S&quot;</span><span class="s0">)</span>
+        <span class="s0">print(</span><span class="s3">f&quot; </span><span class="s4">{</span><span class="s0">current_time</span><span class="s4">} </span><span class="s3">- Starting Gower Scoring for </span><span class="s4">{</span><span class="s0">threshold</span><span class="s4">}</span><span class="s3">&quot;</span><span class="s0">)</span>
+        <span class="s1">for </span><span class="s0">index, value </span><span class="s1">in </span><span class="s0">unlabeled_data.iterrows():</span>
+            <span class="s1">if </span><span class="s0">self.points.shape[</span><span class="s5">0</span><span class="s0">] &lt; n_instances:</span>
+                <span class="s0">convert_series = value.to_frame().T</span>
+                <span class="s0">convert_series[</span><span class="s3">'original_index'</span><span class="s0">] = convert_series[</span><span class="s3">'original_index'</span><span class="s0">].astype(int)</span>
+                <span class="s0">formulation_id = convert_series[</span><span class="s3">'original_index'</span><span class="s0">].values[</span><span class="s5">0</span><span class="s0">]</span>
+                <span class="s0">data = convert_series.drop(columns=[</span><span class="s3">'original_index'</span><span class="s0">])</span>
+                <span class="s0">index = index</span>
+
+                <span class="s1">if </span><span class="s0">self.points.shape[</span><span class="s5">0</span><span class="s0">] &gt;= </span><span class="s5">1</span><span class="s0">:</span>
+
+
+                    <span class="s2"># https://medium.com/analytics-vidhya/gowers-distance-899f9c4bd553</span>
+                    <span class="s2"># The lower the value, the more similar it is. Therefore, 1 - gower makes it</span>
+                    <span class="s2"># The lower the value the less similar it is.</span>
+                    <span class="s0">similarity = </span><span class="s5">1 </span><span class="s0">- gower.gower_matrix(self.points,data, cat_features=converted_columns).min(axis=</span><span class="s5">0</span><span class="s0">)</span>
+
+                    <span class="s1">if </span><span class="s0">similarity &lt;= threshold:</span>
+                        <span class="s0">self.points = np.append(self.points, data, axis=</span><span class="s5">0</span><span class="s0">)</span>
+                        <span class="s0">print(str(index) + </span><span class="s3">&quot;/&quot; </span><span class="s0">+ str(unlabeled_data.shape[</span><span class="s5">0</span><span class="s0">]) + </span><span class="s3">&quot; - Formulation ID: &quot; </span><span class="s0">+ str(</span>
+                            <span class="s0">formulation_id))</span>
+                        <span class="s0">similarity_points[formulation_id] = similarity</span>
+                        <span class="s0">threshold_level[formulation_id] = threshold</span>
+                <span class="s1">else</span><span class="s0">:</span>
+                    <span class="s0">similarity_points[formulation_id] = </span><span class="s5">0</span>
+                    <span class="s0">self.points = np.append(self.points, data, axis=</span><span class="s5">0</span><span class="s0">)</span>
+                    <span class="s0">threshold_level[formulation_id] = threshold</span>
+                    <span class="s0">print(str(index) + </span><span class="s3">&quot;/&quot; </span><span class="s0">+ str(unlabeled_data.shape[</span><span class="s5">0</span><span class="s0">]) + </span><span class="s3">&quot; - Formulation ID: &quot; </span><span class="s0">+ str(</span>
+                        <span class="s0">formulation_id))</span>
+            <span class="s1">else</span><span class="s0">:</span>
+                <span class="s1">break</span>
+        <span class="s0">now = datetime.now()</span>
+
+        <span class="s0">current_time = now.strftime(</span><span class="s3">&quot;%H:%M:%S&quot;</span><span class="s0">)</span>
+        <span class="s0">print(</span><span class="s3">f&quot; </span><span class="s4">{</span><span class="s0">current_time</span><span class="s4">} </span><span class="s3">- Completed Gower Scoring&quot;</span><span class="s0">)</span>
+        <span class="s0">print(</span>
+            <span class="s3">&quot;Found &quot; </span><span class="s0">+ str(self.points.shape[</span><span class="s5">0</span><span class="s0">]) + </span><span class="s3">&quot; points with similarities less than or equal to: &quot; </span><span class="s0">+ str(threshold))</span>
+
+        <span class="s0">similarity_df = pd.DataFrame.from_dict(similarity_points, orient=</span><span class="s3">'index'</span><span class="s0">)</span>
+        <span class="s0">similarity_df = similarity_df.rename(columns={</span><span class="s5">0</span><span class="s0">: </span><span class="s3">'similarity_score'</span><span class="s0">})</span>
+        <span class="s0">result = pd.merge(unlabeled_data, similarity_df, left_on=</span><span class="s3">'original_index'</span><span class="s0">, right_index=</span><span class="s1">True</span><span class="s0">)</span>
+        <span class="s0">results_index = result[</span><span class="s3">'original_index'</span><span class="s0">]</span>
+        <span class="s0">similarity_scores = result[</span><span class="s3">'similarity_score'</span><span class="s0">]</span>
+        <span class="s0">result.drop(columns=[</span><span class="s3">'original_index'</span><span class="s0">, </span><span class="s3">'similarity_score'</span><span class="s0">], inplace=</span><span class="s1">True</span><span class="s0">)</span>
+        <span class="s0">result = result.to_numpy()</span>
+
+        <span class="s1">return </span><span class="s0">result, results_index, similarity_scores, self.points</span>
+
+    <span class="s1">def </span><span class="s0">similarity_cosine(self, threshold: float = </span><span class="s5">0.5</span><span class="s0">, similarity_measurement: str = </span><span class="s3">'cosine'</span><span class="s0">, n_instances: int = </span><span class="s5">100</span><span class="s0">):</span>
+        <span class="s1">assert </span><span class="s0">threshold &lt;= </span><span class="s5">1.0</span>
+        <span class="s0">unlabeled_data = pd.DataFrame(self.unlabeled_data.copy())</span>
+        <span class="s0">unlabeled_data[</span><span class="s3">'original_index'</span><span class="s0">] = self.index_unlabeled_data</span>
+
+        <span class="s0">similarity_points = {}</span>
+        <span class="s0">points = np.empty((</span><span class="s5">0</span><span class="s0">, unlabeled_data.shape[</span><span class="s5">1</span><span class="s0">] - </span><span class="s5">1</span><span class="s0">), float)</span>
+
+        <span class="s1">for </span><span class="s0">index, value </span><span class="s1">in </span><span class="s0">unlabeled_data.iterrows():</span>
+            <span class="s1">if </span><span class="s0">points.shape[</span><span class="s5">0</span><span class="s0">] &gt;= n_instances:</span>
+                <span class="s0">convert_series = value.to_frame().T</span>
+                <span class="s0">convert_series[</span><span class="s3">'original_index'</span><span class="s0">] = convert_series[</span><span class="s3">'original_index'</span><span class="s0">].astype(int)</span>
+                <span class="s0">formulation_id = convert_series[</span><span class="s3">'original_index'</span><span class="s0">].values[</span><span class="s5">0</span><span class="s0">]</span>
+                <span class="s0">data = convert_series.drop(columns=[</span><span class="s3">'original_index'</span><span class="s0">])</span>
+                <span class="s0">index = index</span>
+
+                <span class="s1">if </span><span class="s0">points.shape[</span><span class="s5">0</span><span class="s0">] &gt;= </span><span class="s5">1</span><span class="s0">:</span>
+                    <span class="s0">similarity = </span><span class="s5">1 </span><span class="s0">- spatial.distance.cdist(points[-</span><span class="s5">1</span><span class="s0">:, :], data, metric=similarity_measurement)[</span><span class="s5">0</span><span class="s0">][</span><span class="s5">0</span><span class="s0">]</span>
+                    <span class="s1">if </span><span class="s0">similarity &lt;= threshold:</span>
+                        <span class="s0">similarity_points[formulation_id] = similarity</span>
+                        <span class="s0">points = np.append(points, data, axis=</span><span class="s5">0</span><span class="s0">)</span>
+                <span class="s1">else</span><span class="s0">:</span>
+                    <span class="s0">similarity_points[formulation_id] = </span><span class="s5">1.0</span>
+                    <span class="s0">points = np.append(points, data, axis=</span><span class="s5">0</span><span class="s0">)</span>
+            <span class="s1">else</span><span class="s0">:</span>
+                <span class="s1">break</span>
+        <span class="s0">similarity_df = pd.DataFrame.from_dict(similarity_points, orient=</span><span class="s3">'index'</span><span class="s0">)</span>
+        <span class="s0">similarity_df = similarity_df.rename(columns={</span><span class="s5">0</span><span class="s0">: </span><span class="s3">'similarity_score'</span><span class="s0">})</span>
+        <span class="s0">result = pd.merge(unlabeled_data, similarity_df, left_on=</span><span class="s3">'original_index'</span><span class="s0">, right_index=</span><span class="s1">True</span><span class="s0">)</span>
+        <span class="s0">results_index = result[</span><span class="s3">'original_index'</span><span class="s0">]</span>
+        <span class="s0">similarity_score = result[</span><span class="s3">'similarity_score'</span><span class="s0">]</span>
+        <span class="s0">result.drop(columns=[</span><span class="s3">'original_index'</span><span class="s0">], inplace=</span><span class="s1">True</span><span class="s0">)</span>
+
+        <span class="s1">return </span><span class="s0">result, results_index, similarity_score</span></pre>
+</body>
+</html>
