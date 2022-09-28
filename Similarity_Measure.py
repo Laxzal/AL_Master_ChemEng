@@ -11,7 +11,51 @@ class Similarity():
         self.index_unlabeled_data = index_unlabeled_data
         self.points = None
 
-    def _loop_function(self, threshold, unlabeled_data, similarity_points, n_instances, converted_columns, threshold_level):
+    def _loop_function(self, threshold, unlabeled_data, similarity_points, n_instances, converted_columns,
+                       threshold_level):
+
+        '''
+
+        The _loop_function determines the gower measurement of each data point compared to the points array created in
+        the function similarity_gower.
+
+        The core of the function is as follows:
+
+        The max ranked standard deviation unlabelled dataset is iterated over using the method .iterrows(). This
+        method returns the index and the row (as a series) as pairs. If the points array is empty, then the first max
+        ranked std deviation unlabelled formulation is appended to the points array. Once the points array has its
+        first data point appended, the next max ranked std unlabelled formulation is compared to the first data point
+        in the points array via the gower method. If the gower measurement returns a value less than the threshold,
+        it means the data point passes the threshold requirement of dissimilarity and is added to the points array.
+        However, if it is higher than the threshold, it is subsequently removed.
+
+        Now, if there are, for example, two data points in the points array, the next max std deviation unlabelled
+        formulation is compared to both of the points within the points array. If it's dissimilarity scores for each
+        data points in the point are lower than the threshold at the time, then it is added to the points array.
+        However, if it's dissimilarity score to one of the data points in the points array is higher than the
+        threshold, it is subsequently removed.
+
+        Overall, this row iteration continues until all formulations in the max ranked std deviation unlabelled dataset
+        has been compared.
+
+        The function then returns the selected unlabelled formulations that passed the threshold, their index in the
+        unlabelled dataset, their similarity scores and the points array (which may or may not be higher than the
+        required number of chosen instances set by the user).
+
+
+        :param threshold: float, a value set by the user that determines whether the unlabelled formulation is
+        dissimilar enough to be considered for labelling
+        :param unlabeled_data: dataframe, the unlabelled dataset that has been ranked via the max standard deviation
+        sampling strategy
+        :param similarity_points: dict, a dictionary of the formulation index and their similarity score
+        :param n_instances: int, number of required unlabelled formulations to be selected, set by the user
+        :param converted_columns: list, the feature names
+        :param threshold_level: dict, a dictionary of the threshold level the unlabelled formulation was chosen at the
+        time
+        :return: The function then returns the selected unlabelled formulations that passed the threshold, their index
+        in the unlabelled dataset, their similarity scores and the points array (which may or may not be higher than the
+        required number of chosen instances set by the user).
+        '''
         now = datetime.now()
 
         current_time = now.strftime("%H:%M:%S")
@@ -99,6 +143,34 @@ class Similarity():
         return result, results_index, similarity_score
 
     def similarity_gower(self, threshold, n_instances, converted_columns):
+        '''
+        The Gower Measurement determines how similar each data point is to each other. In this function, the ranked
+        standard deviation of the unlabelled dataset are compared with each other.
+
+        The function begins with copying the ranked max standard deviation unlabelled dataset. Then, a dictionary
+        variable, similarity_points, is initialised. After this, the empty 2-D array called points,
+        with the dimension (0, [number of rows in the unlabelled dataset] -1) is also initialized. Finally,
+        the variable threshold_level is also initialised.
+
+        A while loop then begins, with the condition that if the number of data points in the variable points is less
+        than the number of instances chosen by the user, the function in the while loop will continue.
+
+        The _loop_function returns the results of the gower measurement, the index of the results, their similarity
+        scores and the points array. If the points array is less than the number of required selected instances set
+        by the user then the threshold level is increase by 0.1. The _loop_function then occurs again with a higher
+        threshold than previously used.
+
+        Eventually, once the points variable array has enough data points, the while loop ends and the function
+        similarity_gower returns the selected max rank unlabelled samples for the user to label.
+
+
+
+        :param threshold: float, the initial threshold level set by the user before incrementation
+        :param n_instances: int, the required number of selected unlabelled formulations required by the user
+        :param converted_columns: list, a list of the feature names
+        :return: the function similarity_gower returns the selected max rank unlabelled samples for the user to label
+        determined by the gower measurement and n_instances
+        '''
 
         assert threshold <= 1.0
         unlabeled_data = pd.DataFrame(self.unlabeled_data.copy())

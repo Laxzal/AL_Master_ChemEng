@@ -30,7 +30,7 @@ class MRMR(object):
                 self.corr.loc[self.not_selected, last_selected] = self.X[self.not_selected].corrwith(self.X[last_selected]).abs().clip(.00001)
             # compute FCQ score for all the (currently) excluded features (this is Formula 2)
             score = self.F.loc[self.not_selected]/self.corr.loc[self.not_selected, self.selected].mean(axis=1).fillna(.00001)
-
+            #max instead mean
             #Find the best feature
             best = score.index[score.argmax()]
             self.selected.append(best)
