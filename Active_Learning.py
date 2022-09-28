@@ -27,7 +27,7 @@ from BatchMode_Committee import batch_sampling
 from Cluster import KMeans_Cluster, HDBScan
 from CommitteeClass import CommitteeRegressor, CommitteeClassification
 from DataLoad import Data_Load_Split
-from DiversitySampling_Clustering import DiversitySampling
+#from DiversitySampling_Clustering import DiversitySampling
 from Models import SvmModel, RfModel, CBModel, SVR_Model, RandomForestEnsemble, CatBoostReg, SVRLinear#, Neural_Network
 from PreProcess import MinMaxScaling, Standardisation
 from QueriesCommittee import max_disagreement_sampling, max_std_sampling
@@ -38,25 +38,33 @@ from build_al_data_file import ALDataBuild
 from mrmr_algorithm import MRMR
 from scipy.stats import loguniform
 import warnings
-from automated_liha_params import LiHa_Params
+#from automated_liha_params import LiHa_Params
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 """'
 
 GATHER DATA
 
 '"""
-
+regression_output_path_1 = r"/Users/calvin/Documents/OneDrive/Documents/2022/RegressorCommittee_Output"
+regression_output_path_2 = r"C:\Users\Calvin\OneDrive\Documents\2022\RegressorCommittee_Output"
 if platform.system() == 'Windows':
-    os.chdir()
+    wrk_path_win = r"C:\Users\Calvin\OneDrive\Documents\2022\Data_Output"
+    os.chdir(wrk_path_win)
+    save_path = regression_output_path_2
 elif platform.system() == 'Darwin':
     wrk_path_3 = r"/Users/calvin/Documents/OneDrive/Documents/2022/Data_Output"
     os.chdir(wrk_path_3)
+    save_path = regression_output_path_1
 
 classification_output_path_1 = r"/Users/calvin/Documents/OneDrive/Documents/2022/ClassifierCommittee_Output"
 classification_output_path_2 = r"C:\Users\Calvin\OneDrive\Documents\2022\ClassifierCommittee_Output"
 
-regression_output_path_1 = r"/Users/calvin/Documents/OneDrive/Documents/2022/RegressorCommittee_Output"
-regression_output_path_2 = r"C:\Users\Calvin\OneDrive\Documents\2022\RegressorCommittee_Output"
+
+
+
+
+
+
 '''
 Pull in Unlabelled data
 '''
@@ -143,7 +151,7 @@ class Algorithm(object):
         self.optimised_classifier = None
         self.model_object = model_object
         self.selection_functions = SelectionFunction()
-        self.diversity_sampling = DiversitySampling()
+        #self.diversity_sampling = DiversitySampling()
         self.select = select
         self.file = file
         self.limit = limit
@@ -367,19 +375,33 @@ class Algorithm(object):
         self.X_train, self.X_test, self.y_train, self.y_test = data_load_split.split_train_test()
 
         if self.post_run==True:
-            if self.run_type == 'AL':
-                folder_formulations = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/'
-                folder_formulations = os.path.join(folder_formulations,self.al_folder)
-            elif self.run_type == 'Random':
-                folder_formulations = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/'
-                folder_formulations = os.path.join(folder_formulations,self.random_folder)
-            elif self.run_type == 'Random_Adjusted':
-                folder_formulations = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/'
-                folder_formulations = os.path.join(folder_formulations,self.random_folder)
-            elif self.run_type == 'AL & Random':
-                folder_formulations = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/'
-                folder_formulations = os.path.join(folder_formulations, self.al_random_folder)
-            more_data = ALDataBuild(folder_dls=r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Input',
+            if os.name == "posix":
+                folder_dls = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Input'
+                if self.run_type == 'AL':
+                    folder_formulations = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/'
+                    folder_formulations = os.path.join(folder_formulations,self.al_folder)
+                elif self.run_type == 'Random':
+                    folder_formulations = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/'
+                    folder_formulations = os.path.join(folder_formulations,self.random_folder)
+                elif self.run_type == 'Random_Adjusted':
+                    folder_formulations = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/'
+                    folder_formulations = os.path.join(folder_formulations,self.random_folder)
+                elif self.run_type == 'AL & Random':
+                    folder_formulations = r'/Users/calvin/Library/CloudStorage/OneDrive-Personal/Documents/2022/RegressorCommittee_Output/'
+                    folder_formulations = os.path.join(folder_formulations, self.al_random_folder)
+            else:
+                folder_dls = r"C:\Users\Calvin\OneDrive\Documents\2022\RegressorCommittee_Input"
+                folder_formulations = r'C:\Users\Calvin\OneDrive\Documents\2022\RegressorCommittee_Output/'
+                if self.run_type == 'AL':
+                    folder_formulations = os.path.join(folder_formulations, self.al_folder)
+                elif self.run_type == 'Random':
+                    folder_formulations = os.path.join(folder_formulations, self.random_folder)
+                elif self.run_type == 'Random_Adjusted':
+                    folder_formulations = os.path.join(folder_formulations, self.random_folder)
+                elif self.run_type == 'AL & Random':
+                    folder_formulations = os.path.join(folder_formulations, self.al_random_folder)
+
+            more_data = ALDataBuild(folder_dls=folder_dls,
                                     folder_formulations=folder_formulations)
             #TODO Check out the sorted list of compl folders issue
             self.prev_gguid_df = more_data.load_prev_gguid(save_path=self.input_folder,recent_folder=self.sorted_list_of_compl_folders[0])
@@ -468,6 +490,7 @@ class Algorithm(object):
 
 
 
+        self.K = len(self.columns_x_val)
         mrmr = MRMR(data_load_split.X, data_load_split.y, self.columns_x_val, K=self.K)
         self.selected, self.not_selected = mrmr.computing_correlations()
 
@@ -564,11 +587,14 @@ class Algorithm(object):
             #self.committee_models.shap_analysis_committee(X_test=self.X_test, X=self.X ,features=self.columns_x_val,
             #                                              y_test=self.y_test,
             #                                              save_path=self.save_path)
-            self.committee_models.shapash_analysis_committee(X_train=self.X_train, y_train=self.y_train,
-                                                             X_test=self.X_test, X=self.X, features=self.columns_x_val,
-                                                             y_test=self.y_test,y= self.y)
+            #self.committee_models.shapash_analysis_committee(X_train=self.X_train, y_train=self.y_train,
+            #                                                 X_test=self.X_test, X=self.X, features=self.columns_x_val,
+            #                                                 y_test=self.y_test,y= self.y)
+            #self.committee_models.acv_analysis_committee(X_train=self.X_train, y_train=self.y_train,
+            #                                             X_test=self.X_test, y_test=self.y_test)
 
-
+            self.committee_models.permutation_importance_committee(X_test=self.X_test, y_test=self.y_test,
+                                                                   features=self.columns_x_val, save_path=self.save_path)
     def classification_model(self, splits: int = 5, grid_params=None):
         if type(self.model_object) is list:
             self.committee_models = CommitteeClassification(learner_list=self.model_object, X_training=self.X_train,
@@ -591,6 +617,8 @@ class Algorithm(object):
             self.precision_scores = self.committee_models.precision_scoring()
             self.models_algorithms = self.committee_models.printname()
             self.committee_models.lime_analysis(self.columns_x_val, save_path=self.save_path)
+
+
 
     def compare_query_changes(self):
         selection_df = pd.DataFrame(self.selection_probas_val[1]).reset_index(drop=True)
@@ -797,8 +825,10 @@ class Algorithm(object):
             random_data.to_excel(file_name, index_label=False)
 
     def master_file(self):
-
-        path = r"/Users/calvin/Documents/OneDrive/Documents/2022/Data_Output"
+        if os.name == "posix":
+            path = r"/Users/calvin/Documents/OneDrive/Documents/2022/Data_Output"
+        else:
+            path = r'C:\Users\Calvin\OneDrive\Documents\2022\Data_Output'
         file_name = "MasterFile_AL_Results.xlsx"
         #Check if file exists
         if os.path.isfile(os.path.join(path,file_name)) == True:
@@ -977,13 +1007,13 @@ class Algorithm(object):
         df2.to_csv(os.path.join(self.save_path,'iteration_prev_guid.csv'),index=False)
 
 
-    def automated_liha_file(self):
-
-        liha = LiHa_Params(self.output_file_name,
-                   self.save_path)
-
-        liha.read_al_file()
-        liha.reactant_weights(0.5, 0.5, 0.3)
+    # def automated_liha_file(self):
+    #
+    #     liha = LiHa_Params(self.output_file_name,
+    #                self.save_path)
+    #
+    #     liha.read_al_file()
+    #     liha.reactant_weights(0.5, 0.5, 0.3)
 
 
     def change_folder_name_complete(self):
@@ -1173,7 +1203,6 @@ grid_params['SVR'] = SVM_Reg
 grid_params['NN_Reg'] = NN_Regression
 
 
-save_path = regression_output_path_1
 alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
                 scoring_type='r2', save_path=save_path, al_folder='AL_Output',
                 al_random_folder='AL_Random_Output',
@@ -1213,7 +1242,7 @@ alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
 
                                            ],
                 MRMR_K_Value=10
-                ,post_run=False,
+                ,post_run=True,
                 run_type='AL')
 
 #alg.analyse_data()
@@ -1225,7 +1254,7 @@ alg.output_data()
 alg.random_unlabelled(n_instances=10)
 alg.master_file()
 alg.export_modified_unlabelled_data_and_additional_labeled_and_guid()
-alg.automated_liha_file()
+#alg.automated_liha_file()
 alg.change_folder_name_complete()
 
 #https://medium.com/analytics-vidhya/mae-mse-rmse-coefficient-of-determination-adjusted-r-squared-which-metric-is-better-cd0326a5697e

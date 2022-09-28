@@ -1,6 +1,6 @@
 import os
 from random import shuffle
-
+import platform
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -9,8 +9,12 @@ from Cluster import CosineClusters
 from Cluster import Cluster
 from PreProcess import PCA_scale
 
-wrk_path_3 = r"/Users/calvin/Documents/OneDrive/Documents/2020/Liposomes Vitamins/LiposomeFormulation"
-os.chdir(wrk_path_3)
+if platform.system() == 'Windows':
+    wrk_path_win = r"C:\Users\Calvin\OneDrive\Documents\2022\Data_Output"
+    os.chdir(wrk_path_win)
+elif platform.system() == 'Darwin':
+    wrk_path_3 = r"/Users/calvin/Documents/OneDrive/Documents/2022/Data_Output"
+    os.chdir(wrk_path_3)
 
 '''
 Pull in Unlabelled data

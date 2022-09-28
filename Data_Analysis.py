@@ -118,9 +118,10 @@ class Data_Analyse(object):
 
         # close any existing plots
         plt.close("all")
-        fig, ax = plt.subplots(figsize=(24, 18))
+        fig, ax = plt.subplots(figsize=(24, 24))
 
         data_df = pd.DataFrame(data_x, columns=dataheadings_x)
+        data_df = data_df.infer_objects()
         sns.heatmap(data_df.corr(method='pearson'), cmap="Spectral", annot=True, linewidths=.5)
 
         if plot == True:
@@ -160,6 +161,7 @@ class Data_Analyse(object):
         :param dataheadings_x:
         :return: variance inflation factor. Less than 10 preferred. If receiving INF, then there is perfect colinearity
         '''
+        data_x = data_x.astype(float)
         vif = pd.DataFrame()
         vif["features"] = dataheadings_x
         vif["vif_Factor"] = [variance_inflation_factor(data_x, i) for i in range(data_x.shape[1])]
@@ -170,8 +172,10 @@ class Data_Analyse(object):
 
         if isinstance(data, pd.DataFrame):
             temp_def = data
+            temp_def = temp_def.infer_objects()
         else:
             temp_def = pd.DataFrame(data, columns=feature_names)
+            temp_def = temp_def.infer_objects()
 
         feature_config = sv.FeatureConfig(force_num=list(temp_def.columns))
         advert_report = sv.analyze(temp_def, target_feat=target,

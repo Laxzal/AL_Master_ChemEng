@@ -1,24 +1,24 @@
 import os
 import sys
 from typing import Optional
-
 import catboost as cb
 import numpy as np
 import pandas as pd
 import shap
 from matplotlib import pyplot as plt
+from mlxtend.evaluate import feature_importance_permutation
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.metrics import confusion_matrix, precision_score
+from sklearn.metrics import confusion_matrix, precision_score, roc_auc_score
 from sklearn.model_selection import StratifiedKFold, GridSearchCV, KFold, RepeatedKFold, cross_val_score, \
     RandomizedSearchCV
 from sklearn.svm import SVC, SVR, LinearSVR
 from sklearn.utils import compute_class_weight
-
 import ToolsActiveLearning
 from BaseModel import BaseModel
 from MSVR import MSVR
 from shapash.explainer.smart_explainer import SmartExplainer
-
+from acv_explainers import ACXplainer
+import acv_app
 class SvmModel(BaseModel):
     model_type = 'SVC'
     model_category = 'Classification'
@@ -435,7 +435,28 @@ class SVR_Model(BaseModel):
         #fig.savefig(fig_summary, bbox_inches='tight')
         ToolsActiveLearning.print_feature_importance_shap_values(shap_values, features)
 
+    def avc_analysis_model(self, X_train, y_train, X_test, y_test):
+        acv_xplainer = ACXplainer(classifier=False, n_estimators=50, max_depth=5)
+        acv_xplainer.fit(X_train, y_train)
+        acv_app.compile_ACXplainers(acv_xplainer, X_train, y_train, X_test, y_test, path=os.getcwd())
+        acv_app.run_webapp(pickle_path=os.getcwd())
 
+    def permutation_importance_model(self, X_test, y_test, column_names,save_path):
+        imp_vals, _ = feature_importance_permutation(predict_method=self.optimised_model.predict,
+                                                     X=X_test, y=y_test,
+                                                     metric='r2',
+                                                     num_rounds=100,
+                                                     seed=42)
+        print(imp_vals)
+        plt.close("all")
+        temp_df = pd.DataFrame(imp_vals, columns=['feature_importance'], index=column_names)
+        temp_df = temp_df.sort_values(by="feature_importance", ascending=False)
+        temp_df.plot(kind="bar", title="SVR Feature Importance (R2)")
+        plt.style.use('fivethirtyeight')
+        plt.tight_layout()
+        plot_name = str(SVR_Model.model_type) + '_permutation_importance.jpg'
+        plot_name = os.path.join(save_path, plot_name)
+        plt.savefig(plot_name, dpi=400)
 
 
 class RandomForestEnsemble(BaseModel):
@@ -582,6 +603,23 @@ class RandomForestEnsemble(BaseModel):
             plot_name = os.path.join(save_path, plot_name)
             plt.tight_layout()
             plt.savefig(plot_name, dpi=400)
+    def permutation_importance_model(self, X_test, y_test, column_names,save_path):
+        imp_vals, _ = feature_importance_permutation(predict_method=self.optimised_model.predict,
+                                                     X=X_test, y=y_test,
+                                                     metric='r2',
+                                                     num_rounds=100,
+                                                     seed=42)
+        print(imp_vals)
+        plt.close("all")
+        temp_df = pd.DataFrame(imp_vals, columns=['feature_importance'], index=column_names)
+        temp_df = temp_df.sort_values(by="feature_importance", ascending=False)
+        temp_df.plot(kind="bar", title="RFE Feature Importance (R2)")
+        plt.style.use('fivethirtyeight')
+        plt.style.use("ggplot")
+        plt.tight_layout()
+        plot_name = str(RandomForestEnsemble.model_type) + '_permutation_importance.jpg'
+        plot_name = os.path.join(save_path, plot_name)
+        plt.savefig(plot_name, dpi=400)
 
 
 class CatBoostReg(BaseModel):
@@ -744,6 +782,23 @@ class CatBoostReg(BaseModel):
             plot_name = os.path.join(save_path, plot_name)
             plt.tight_layout()
             plt.savefig(plot_name, dpi=400)
+    def permutation_importance_model(self, X_test, y_test, column_names,save_path):
+        imp_vals, _ = feature_importance_permutation(predict_method=self.optimised_model.predict,
+                                                     X=X_test, y=y_test,
+                                                     metric='r2',
+                                                     num_rounds=100,
+                                                     seed=42)
+        print(imp_vals)
+        plt.close("all")
+        temp_df = pd.DataFrame(imp_vals, columns=['feature_importance'], index=column_names)
+        temp_df = temp_df.sort_values(by="feature_importance", ascending=False)
+        temp_df.plot(kind="bar", title="CatBoost Feature Importance (R2)")
+        plt.style.use('fivethirtyeight')
+        plt.style.use("ggplot")
+        plt.tight_layout()
+        plot_name = str(CatBoostReg.model_type) + '_permutation_importance.jpg'
+        plot_name = os.path.join(save_path, plot_name)
+        plt.savefig(plot_name, dpi=400)
 
 
 class SVRLinear(BaseModel):

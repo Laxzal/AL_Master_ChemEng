@@ -331,7 +331,7 @@ class CommitteeRegressor(ABC):
                                                                   splits=self.splits,
                                                                   kfold_shuffle=self.kfold_shuffle,
                                                                   scoring_type=self.scoring_type,
-                                                                  initialisation = initialisation)
+                                                                  initialisation=initialisation)
 
         return score_values
 
@@ -339,10 +339,10 @@ class CommitteeRegressor(ABC):
         score_values = {}
         for learner_idx, learner in enumerate(self.learner_list):
             score_values[learner.model_type] = learner.default_model(X_train=self.X_training, y_train=self.y_training,
-                                                                 params=None,
-                                                                 splits=self.splits,
-                                                                 kfold_shuffle=self.kfold_shuffle,
-                                                                 scoring_type=self.scoring_type)
+                                                                     params=None,
+                                                                     splits=self.splits,
+                                                                     kfold_shuffle=self.kfold_shuffle,
+                                                                     scoring_type=self.scoring_type)
         return score_values
 
     def optimised_comittee(self, params: dict = None):
@@ -438,13 +438,23 @@ class CommitteeRegressor(ABC):
             learner.predict_actual_graph(y_actual_train=self.y_training, y_actual_test=self.y_testing,
                                          score_query=self.score_query, save_path=save_path, plot=plot)
 
-
     def shap_analysis_committee(self, X_test, X, features, y_test, save_path):
         for learner_idx, learner in enumerate(self.learner_list):
             learner.shap_analysis_model(X_test, X, features, y_test, save_path)
-    def shapash_analysis_committee(self, X_train, y_train, X_test, X, features, y_test,y):
+
+    def shapash_analysis_committee(self, X_train, y_train, X_test, X, features, y_test, y):
         for learner_idx, learner in enumerate(self.learner_list):
             learner.shapash_analysis(X_train, y_train, X_test, y_test, X, y, features)
+
+    def acv_analysis_committee(self, X_train, y_train, X_test, y_test):
+        for learner_idx, learner in enumerate(self.learner_list):
+            learner.avc_analysis_model(X_train, y_train, X_test, y_test)
+
+    def permutation_importance_committee(self, X_test, y_test, features, save_path):
+        for learner_idx, learner in enumerate(self.learner_list):
+            learner.permutation_importance_model(X_test=X_test, y_test=y_test, column_names=features,
+                                                 save_path=save_path)
+
     # def lime_analysis(self, feature_names, save_path: Optional[str], skip_unlabelled_analysis: bool=False):
     # feat_names: str = None, target_names: str = None
     # explainer = lime.lime_tabular.LimeTabularExplainer(self.X_training, feature_names=feat_names,
