@@ -138,7 +138,7 @@ class Algorithm(object):
 
         assert perc_uncertain <= 1
         assert model_type in ['Classification', 'Regression']
-        assert run_type in [None, 'AL','Random','Random_Adjusted', 'AL & Random'], 'Choices are "None", "AL", "Random" and "AL & Random" '
+        assert run_type in [None, 'AL','Random','Random_Adjusted', 'AL & Random', 'AL_Continued'], 'Choices are "None", "AL", "Random" and "AL & Random" '
 
         self.regression = None
         self.similarity_score = None
@@ -246,7 +246,7 @@ class Algorithm(object):
                     print("Directory ", dirName, " Created")
                 except FileExistsError:
                     print("Directory ", dirName, " already exists")
-            if self.run_type == 'AL':
+            if self.run_type == 'AL' or self.run_type=='AL_Continued':
                 al_folder = self.al_folder
                 save_folder = os.path.join(self.save_path, al_folder)
                 self.input_folder = save_folder
@@ -392,7 +392,7 @@ class Algorithm(object):
             else:
                 folder_dls = r"C:\Users\Calvin\OneDrive\Documents\2022\RegressorCommittee_Input"
                 folder_formulations = r'C:\Users\Calvin\OneDrive\Documents\2022\RegressorCommittee_Output/'
-                if self.run_type == 'AL':
+                if self.run_type == 'AL' or self.run_type == 'AL_Continued':
                     folder_formulations = os.path.join(folder_formulations, self.al_folder)
                 elif self.run_type == 'Random':
                     folder_formulations = os.path.join(folder_formulations, self.random_folder)
@@ -405,7 +405,7 @@ class Algorithm(object):
                                     folder_formulations=folder_formulations)
             #TODO Check out the sorted list of compl folders issue
             self.prev_gguid_df = more_data.load_prev_gguid(save_path=self.input_folder,recent_folder=self.sorted_list_of_compl_folders[0])
-            if self.run_type != 'Random_Adjusted':
+            if self.run_type != 'Random_Adjusted' and self.run_type!= 'AL_Continued':
                 more_data.collect_csv()
                 more_data.clean_dls_data()
                 more_data.filter_out_D_iteration()
@@ -467,7 +467,7 @@ class Algorithm(object):
                 data_load_split.update_x_y_data(additional_x=more_data.X_train_random, additional_y=more_data.y_train_random,
                                                 prev_x_data=self.X_train_prev,prev_y_data= self.y_train_prev)
 
-            elif self.run_type == 'Random_Adjusted':
+            elif self.run_type == 'Random_Adjusted' or self.run_type=='AL_Continued':
                 self.X_val, self.columns_x_val = unlabelled_data(self.file,
                                                                  method='fillna',
                                                                  column_removal_experiment=self.column_removal_experiment)
@@ -964,7 +964,7 @@ class Algorithm(object):
                     added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
                     added_data['Z-Average (d.nm)'] = add_data_tgthr_y
                     added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
-                elif self.run_type == 'Random_Adjusted':
+                elif self.run_type == 'Random_Adjusted' or self.run_type =='AL_Continued':
                     add_data_tgthr_x = np.vstack((self.X_train_prev, self.X_train_random))
                     add_data_tgthr_y = np.hstack((self.y_train_prev, self.y_train_random)).reshape(-1, 1)
                     added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
@@ -976,6 +976,7 @@ class Algorithm(object):
                     added_data = pd.DataFrame(add_data_tgthr_x, columns=self.columns_x_val)
                     added_data['Z-Average (d.nm)'] = add_data_tgthr_y
                     added_data.to_csv(os.path.join(self.save_path, "Added_Data.csv"), index=False)
+
             else:
                 print("No previous iteration data")
                 if self.run_type == 'AL':
@@ -1243,7 +1244,7 @@ alg = Algorithm(models, select=max_std_sampling, model_type='Regression',
                                            ],
                 MRMR_K_Value=10
                 ,post_run=True,
-                run_type='AL')
+                run_type='AL_Continued')
 
 #alg.analyse_data()
 alg.run_algorithm(initialisation='default', splits=10, grid_params=grid_params, skip_unlabelled_analysis=True, verbose=False, kfold_repeats=10,
